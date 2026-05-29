@@ -12,7 +12,6 @@ const CSV_HEADERS = [
   'Office Hours',
   'WFH Hours',
   'Total Hours',
-  'Late',
   'Status',
 ];
 
@@ -42,7 +41,6 @@ export function recordsToCsv(records: AttendanceRecord[]): string {
       r.officeHours.toFixed(2),
       r.wfhHours.toFixed(2),
       r.totalHours.toFixed(2),
-      r.late ? 'Yes' : 'No',
       r.status,
     ]
       .map(escapeCsv)

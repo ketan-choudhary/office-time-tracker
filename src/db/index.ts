@@ -12,6 +12,20 @@ class OfficeTimeDB extends Dexie {
       records: 'id, date',
       settings: 'id',
     });
+    this.version(2)
+      .stores({
+        records: 'id, date',
+        settings: 'id',
+      })
+      .upgrade(async (tx) => {
+        const records = await tx.table('records').toArray();
+        await Promise.all(
+          records.map((record) => {
+            const { late: _late, ...rest } = record as AttendanceRecord & { late?: boolean };
+            return tx.table('records').put(rest);
+          }),
+        );
+      });
   }
 }
 
@@ -61,7 +75,11 @@ export async function getRecordsInRange(
 }
 
 export async function importRecords(records: AttendanceRecord[]): Promise<void> {
-  await db.records.bulkPut(records);
+  const normalized = records.map((record) => {
+    const { late: _late, ...rest } = record as AttendanceRecord & { late?: boolean };
+    return rest;
+  });
+  await db.records.bulkPut(normalized);
 }
 
 export async function clearAllRecords(): Promise<void> {

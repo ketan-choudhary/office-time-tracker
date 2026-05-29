@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { useAllRecords } from '@/hooks/useRecords';
+import { formatTimeLabel } from '@/utils/attendance';
 import {
   currentMonthRange,
   formatDayName,
-  formatTime12h,
   previousMonthRange,
 } from '@/utils/time';
 
@@ -89,14 +89,13 @@ export function History() {
               <th className="px-2 py-2">Office</th>
               <th className="px-2 py-2">WFH</th>
               <th className="px-2 py-2">Total</th>
-              <th className="px-2 py-2">Late</th>
               <th className="px-2 py-2">Status</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={13} className="py-8 text-center text-text-muted">
+                <td colSpan={12} className="py-8 text-center text-text-muted">
                   No records for this period.
                 </td>
               </tr>
@@ -108,22 +107,15 @@ export function History() {
                 >
                   <td className="whitespace-nowrap px-2 py-2.5 font-medium">{r.date}</td>
                   <td className="px-2 py-2.5">{formatDayName(r.date)}</td>
-                  <td className="px-2 py-2.5">{formatTime12h(r.wfh1Start)}</td>
-                  <td className="px-2 py-2.5">{formatTime12h(r.wfh1End)}</td>
-                  <td className="px-2 py-2.5">{formatTime12h(r.punchIn)}</td>
-                  <td className="px-2 py-2.5">{formatTime12h(r.punchOut)}</td>
-                  <td className="px-2 py-2.5">{formatTime12h(r.wfh2Start)}</td>
-                  <td className="px-2 py-2.5">{formatTime12h(r.wfh2End)}</td>
+                  <td className="px-2 py-2.5">{formatTimeLabel(r.wfh1Start)}</td>
+                  <td className="px-2 py-2.5">{formatTimeLabel(r.wfh1End)}</td>
+                  <td className="px-2 py-2.5">{formatTimeLabel(r.punchIn)}</td>
+                  <td className="px-2 py-2.5">{formatTimeLabel(r.punchOut)}</td>
+                  <td className="px-2 py-2.5">{formatTimeLabel(r.wfh2Start)}</td>
+                  <td className="px-2 py-2.5">{formatTimeLabel(r.wfh2End)}</td>
                   <td className="px-2 py-2.5">{r.officeHours.toFixed(1)}h</td>
                   <td className="px-2 py-2.5">{r.wfhHours.toFixed(1)}h</td>
                   <td className="px-2 py-2.5 font-medium">{r.totalHours.toFixed(1)}h</td>
-                  <td className="px-2 py-2.5">
-                    {r.late ? (
-                      <span className="text-danger">Yes</span>
-                    ) : (
-                      <span className="text-success">No</span>
-                    )}
-                  </td>
                   <td className="px-2 py-2.5 capitalize">{r.status}</td>
                 </tr>
               ))

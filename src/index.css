@@ -91,4 +91,20 @@
   .section-title {
     @apply text-xs font-semibold uppercase tracking-wider text-text-muted;
   }
+
+  .btn-punch {
+    @apply flex min-h-[92px] w-full touch-manipulation flex-col items-center justify-center gap-1 rounded-3xl px-6 py-5 text-lg font-semibold shadow-elevated transition active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  .btn-punch-in {
+    @apply btn-punch bg-gradient-to-b from-success to-success/85 text-white;
+  }
+
+  .btn-punch-out {
+    @apply btn-punch bg-gradient-to-b from-accent to-accent/85 text-white;
+  }
+
+  .btn-punch-edit {
+    @apply inline-flex min-h-[44px] min-w-[44px] touch-manipulation items-center justify-center rounded-xl border border-border bg-surface-elevated px-4 text-sm font-medium text-accent transition active:scale-95;
+  }
 }

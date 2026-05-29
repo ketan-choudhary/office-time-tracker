@@ -4,7 +4,7 @@ A production-ready Progressive Web App for tracking office attendance, WFH block
 
 ## Features
 
-- **Dashboard** — Today's status, hours breakdown, monthly attendance, late arrivals
+- **Dashboard** — Today's status, hours breakdown, monthly attendance
 - **Daily Entry** — Punch in/out with automatic WFH block calculation
 - **History** — Filterable monthly attendance table
 - **Analytics** — Averages, attendance %, trend charts
@@ -29,7 +29,6 @@ A production-ready Progressive Web App for tracking office attendance, WFH block
 - `Office Hours` = Punch Out − Punch In
 - `WFH1 Hours` = WFH1 End − WFH1 Start
 - `WFH2 Hours` = Target − Office Hours − WFH1 Hours
-- `Late` = Punch In is after Official Start
 
 ## Folder Structure
 
@@ -156,7 +155,6 @@ Follow the prompts. Vercel auto-detects Vite.
 | officeHours | number | Decimal hours |
 | wfhHours | number | Decimal hours |
 | totalHours | number | Decimal hours |
-| late | boolean | Late arrival flag |
 | status | string | complete \| partial \| draft |
 
 **AppSettings** (table: `settings`, single row `id: 'settings'`)

@@ -12,7 +12,6 @@ export interface AttendanceRecord {
   officeHours: number;
   wfhHours: number;
   totalHours: number;
-  late: boolean;
   status: RecordStatus;
 }
 
@@ -44,5 +43,4 @@ export interface ComputedTimes {
   officeHours: number;
   wfhHours: number;
   totalHours: number;
-  late: boolean;
 }

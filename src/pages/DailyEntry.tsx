@@ -1,92 +1,83 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
-import { upsertDailyEntry, useSettings, useTodayRecord } from '@/hooks/useRecords';
-import { computeAttendance } from '@/utils/calculations';
+import { DayTimeline } from '@/components/attendance/DayTimeline';
+import { StatusBadge } from '@/components/attendance/StatusBadge';
 import {
-  formatDisplayDate,
-  formatMinutesAsDuration,
-  formatTime12h,
-  todayDateString,
-} from '@/utils/time';
-import type { ComputedTimes } from '@/types';
+  recordPunchIn,
+  recordPunchOut,
+  updatePunchIn,
+  updatePunchOut,
+  useRecordByDate,
+  useSettings,
+} from '@/hooks/useRecords';
+import { buildTimeline, getDayStatus } from '@/utils/attendance';
+import { formatDisplayDate, formatTime12h, todayDateString } from '@/utils/time';
+
+type EditField = 'in' | 'out' | null;
 
 export function DailyEntry() {
   const settings = useSettings();
-  const todayRecord = useTodayRecord();
   const [date, setDate] = useState(todayDateString());
-  const [punchIn, setPunchIn] = useState('09:00');
-  const [punchOut, setPunchOut] = useState('18:00');
-  const [computed, setComputed] = useState<ComputedTimes | null>(null);
+  const record = useRecordByDate(date);
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [editField, setEditField] = useState<EditField>(null);
+  const [editTime, setEditTime] = useState('');
+
+  const status = getDayStatus(record);
+  const hasPunchIn = Boolean(record?.punchIn);
+  const hasPunchOut = Boolean(record?.punchOut);
+  const timeline = settings ? buildTimeline(record, settings) : [];
 
   useEffect(() => {
-    if (todayRecord && date === todayDateString()) {
-      setPunchIn(todayRecord.punchIn);
-      setPunchOut(todayRecord.punchOut);
-      setComputed({
-        wfh1Start: todayRecord.wfh1Start,
-        wfh1End: todayRecord.wfh1End,
-        wfh2Start: todayRecord.wfh2Start,
-        wfh2End: todayRecord.wfh2End,
-        officeHours: todayRecord.officeHours,
-        wfhHours: todayRecord.wfhHours,
-        totalHours: todayRecord.totalHours,
-        late: todayRecord.late,
-      });
-    }
-  }, [todayRecord, date]);
+    setEditField(null);
+    setError('');
+  }, [date]);
 
-  const loadToday = () => {
-    setDate(todayDateString());
-    if (todayRecord) {
-      setPunchIn(todayRecord.punchIn);
-      setPunchOut(todayRecord.punchOut);
-    }
-  };
-
-  const handleSave = async () => {
+  const run = async (action: () => Promise<unknown>) => {
     if (!settings) return;
     setError('');
     setLoading(true);
     try {
-      const result = await upsertDailyEntry(date, punchIn, punchOut, settings);
-      setComputed({
-        wfh1Start: result.wfh1Start,
-        wfh1End: result.wfh1End,
-        wfh2Start: result.wfh2Start,
-        wfh2End: result.wfh2End,
-        officeHours: result.officeHours,
-        wfhHours: result.wfhHours,
-        totalHours: result.totalHours,
-        late: result.late,
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      await action();
+      setEditField(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save entry.');
+      setError(e instanceof Error ? e.message : 'Something went wrong.');
     } finally {
       setLoading(false);
     }
   };
 
-  const preview = () => {
-    if (!settings || !punchIn || !punchOut) return;
-    try {
-      setComputed(computeAttendance(date, punchIn, punchOut, settings));
-      setError('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Invalid times.');
-      setComputed(null);
-    }
+  const handlePunchIn = () => run(() => recordPunchIn(date, settings!));
+
+  const handlePunchOut = () => run(() => recordPunchOut(date, settings!));
+
+  const startEdit = (field: 'in' | 'out') => {
+    if (!record) return;
+    setEditField(field);
+    setEditTime(field === 'in' ? record.punchIn : record.punchOut);
+    setError('');
   };
+
+  const saveEdit = async () => {
+    if (!settings || !editField || !editTime) return;
+    await run(() =>
+      editField === 'in'
+        ? updatePunchIn(date, editTime, settings)
+        : updatePunchOut(date, editTime, settings),
+    );
+  };
+
+  const goToday = () => setDate(todayDateString());
 
   return (
     <div className="space-y-5 animate-slide-up">
-      <div>
-        <p className="section-title">Daily Entry</p>
-        <h2 className="page-title mt-1">Log Attendance</h2>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="section-title">Daily Entry</p>
+          <h2 className="page-title mt-1">Punch Clock</h2>
+        </div>
+        <StatusBadge status={status} />
       </div>
 
       <Card>
@@ -101,86 +92,68 @@ export function DailyEntry() {
             />
             <p className="mt-1 text-xs text-text-muted">{formatDisplayDate(date)}</p>
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-text-secondary">
-                Punch In
-              </label>
-              <input
-                type="time"
-                className="input-field"
-                value={punchIn}
-                onChange={(e) => setPunchIn(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-text-secondary">
-                Punch Out
-              </label>
-              <input
-                type="time"
-                className="input-field"
-                value={punchOut}
-                onChange={(e) => setPunchOut(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {error && (
-            <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>
+          {date !== todayDateString() && (
+            <button type="button" onClick={goToday} className="btn-secondary w-full">
+              Jump to Today
+            </button>
           )}
-
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={loading || !settings}
-              className="btn-primary flex-1"
-            >
-              {loading ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}
-            </button>
-            <button type="button" onClick={loadToday} className="btn-secondary flex-1">
-              Edit Today
-            </button>
-          </div>
-
-          <button type="button" onClick={preview} className="w-full text-sm text-accent">
-            Preview calculations
-          </button>
         </div>
       </Card>
 
-      {computed && (
-        <Card title="Calculated Schedule" subtitle="Auto-computed from your punches">
-          <div className="space-y-3">
-            <TimeRow label="WFH Block 1" start={computed.wfh1Start} end={computed.wfh1End} />
-            <TimeRow label="Office" start={punchIn} end={punchOut} highlight />
-            <TimeRow label="WFH Block 2" start={computed.wfh2Start} end={computed.wfh2End} />
+      {error && (
+        <p className="rounded-2xl bg-danger/10 px-4 py-3 text-sm text-danger" role="alert">
+          {error}
+        </p>
+      )}
 
-            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-4">
-              <div>
-                <p className="text-xs text-text-muted">Office</p>
-                <p className="font-semibold">{formatMinutesAsDuration(computed.officeHours * 60)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-text-muted">WFH</p>
-                <p className="font-semibold">{formatMinutesAsDuration(computed.wfhHours * 60)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-text-muted">Total</p>
-                <p className="font-semibold text-accent">
-                  {formatMinutesAsDuration(computed.totalHours * 60)}
-                </p>
-              </div>
-            </div>
+      <div className="space-y-3">
+        <PunchSection
+          title="Punch In"
+          subtitle="Records your arrival at the office"
+          time={record?.punchIn}
+          disabled={loading || !settings || hasPunchIn}
+          buttonLabel={hasPunchIn ? 'Punched In' : 'Punch In'}
+          buttonClass="btn-punch-in"
+          onPunch={handlePunchIn}
+          canEdit={hasPunchIn}
+          editing={editField === 'in'}
+          editTime={editTime}
+          onStartEdit={() => startEdit('in')}
+          onEditTimeChange={setEditTime}
+          onSaveEdit={saveEdit}
+          onCancelEdit={() => setEditField(null)}
+        />
 
-            {computed.late && (
-              <p className="rounded-xl bg-warning/10 px-3 py-2 text-sm text-warning">
-                Late arrival — punch in after official start (
-                {settings && formatTime12h(settings.officialStartTime)})
-              </p>
-            )}
+        <PunchSection
+          title="Punch Out"
+          subtitle="Completes your day and calculates hours"
+          time={record?.punchOut}
+          disabled={loading || !settings || !hasPunchIn || hasPunchOut}
+          buttonLabel={hasPunchOut ? 'Punched Out' : 'Punch Out'}
+          buttonClass="btn-punch-out"
+          onPunch={handlePunchOut}
+          canEdit={hasPunchOut}
+          editing={editField === 'out'}
+          editTime={editTime}
+          onStartEdit={() => startEdit('out')}
+          onEditTimeChange={setEditTime}
+          onSaveEdit={saveEdit}
+          onCancelEdit={() => setEditField(null)}
+        />
+      </div>
+
+      {record?.punchIn && settings && (
+        <Card title="Today's Timeline" subtitle={status === 'Completed' ? 'Full schedule' : 'In progress'}>
+          <DayTimeline steps={timeline} />
+        </Card>
+      )}
+
+      {record?.status === 'complete' && record.punchOut && (
+        <Card title="Summary" subtitle="Calculated after punch out">
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <SummaryCell label="Office" value={`${record.officeHours.toFixed(1)}h`} />
+            <SummaryCell label="WFH" value={`${record.wfhHours.toFixed(1)}h`} />
+            <SummaryCell label="Total" value={`${record.totalHours.toFixed(1)}h`} highlight />
           </div>
         </Card>
       )}
@@ -188,27 +161,107 @@ export function DailyEntry() {
   );
 }
 
-function TimeRow({
+function PunchSection({
+  title,
+  subtitle,
+  time,
+  disabled,
+  buttonLabel,
+  buttonClass,
+  onPunch,
+  canEdit,
+  editing,
+  editTime,
+  onStartEdit,
+  onEditTimeChange,
+  onSaveEdit,
+  onCancelEdit,
+}: {
+  title: string;
+  subtitle: string;
+  time?: string;
+  disabled: boolean;
+  buttonLabel: string;
+  buttonClass: string;
+  onPunch: () => void;
+  canEdit: boolean;
+  editing: boolean;
+  editTime: string;
+  onStartEdit: () => void;
+  onEditTimeChange: (v: string) => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+}) {
+  return (
+    <Card className="!p-4">
+      <p className="text-sm font-semibold text-text-primary">{title}</p>
+      <p className="mt-0.5 text-xs text-text-muted">{subtitle}</p>
+
+      {time && !editing && (
+        <div className="mt-3 flex items-center justify-between rounded-2xl bg-surface-muted px-4 py-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Recorded</p>
+            <p className="text-xl font-bold tracking-tight text-text-primary">
+              {formatTime12h(time)}
+            </p>
+          </div>
+          {canEdit && (
+            <button type="button" className="btn-punch-edit" onClick={onStartEdit}>
+              Edit
+            </button>
+          )}
+        </div>
+      )}
+
+      {editing && (
+        <div className="mt-3 space-y-2">
+          <input
+            type="time"
+            className="input-field"
+            value={editTime}
+            onChange={(e) => onEditTimeChange(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button type="button" className="btn-primary flex-1" onClick={onSaveEdit}>
+              Save
+            </button>
+            <button type="button" className="btn-secondary flex-1" onClick={onCancelEdit}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!editing && (
+        <button
+          type="button"
+          className={`${buttonClass} mt-4`}
+          disabled={disabled}
+          onClick={onPunch}
+        >
+          <span>{buttonLabel}</span>
+          {!time && <span className="text-sm font-normal opacity-90">Tap to capture now</span>}
+        </button>
+      )}
+    </Card>
+  );
+}
+
+function SummaryCell({
   label,
-  start,
-  end,
+  value,
   highlight,
 }: {
   label: string;
-  start: string;
-  end: string;
+  value: string;
   highlight?: boolean;
 }) {
   return (
-    <div
-      className={`flex items-center justify-between rounded-xl px-3 py-2.5 ${
-        highlight ? 'bg-accent-muted' : 'bg-surface-muted'
-      }`}
-    >
-      <span className="text-sm font-medium text-text-secondary">{label}</span>
-      <span className="text-sm font-semibold text-text-primary">
-        {formatTime12h(start)} – {formatTime12h(end)}
-      </span>
+    <div className="rounded-xl bg-surface-muted px-2 py-3">
+      <p className="text-xs text-text-muted">{label}</p>
+      <p className={`font-semibold ${highlight ? 'text-accent' : 'text-text-primary'}`}>
+        {value}
+      </p>
     </div>
   );
 }

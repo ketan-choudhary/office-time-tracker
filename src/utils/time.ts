@@ -4,6 +4,11 @@ export function todayDateString(): string {
   return format(new Date(), 'yyyy-MM-dd');
 }
 
+/** Current local time as HH:mm (device timezone). */
+export function currentLocalTime(date: Date = new Date()): string {
+  return format(date, 'HH:mm');
+}
+
 export function formatDisplayDate(dateStr: string): string {
   const d = parseISO(dateStr);
   return isValid(d) ? format(d, 'EEE, MMM d, yyyy') : dateStr;

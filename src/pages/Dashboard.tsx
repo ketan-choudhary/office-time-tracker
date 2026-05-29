@@ -1,10 +1,14 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
+import { DayProgressRing } from '@/components/attendance/DayProgressRing';
+import { DayTimeline } from '@/components/attendance/DayTimeline';
+import { StatusBadge } from '@/components/attendance/StatusBadge';
 import { Card } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
 import { HoursChart } from '@/components/charts/HoursChart';
 import { useAllRecords, useSettings, useTodayRecord } from '@/hooks/useRecords';
+import { buildTimeline, getDayProgress, getDayStatus } from '@/utils/attendance';
 import { isOfficeDay } from '@/utils/calculations';
 import {
   currentMonthRange,
@@ -19,24 +23,43 @@ export function Dashboard() {
   const todayRecord = useTodayRecord();
   const today = todayDateString();
 
+  const dayStatus = getDayStatus(todayRecord);
+  const [progressTick, setProgressTick] = useState(0);
+
+  useEffect(() => {
+    if (dayStatus !== 'Working') return;
+    const id = window.setInterval(() => setProgressTick((n) => n + 1), 60_000);
+    return () => window.clearInterval(id);
+  }, [dayStatus]);
+
+  const timeline = useMemo(
+    () => (settings ? buildTimeline(todayRecord, settings) : []),
+    [todayRecord, settings],
+  );
+  const dayProgress = useMemo(
+    () =>
+      settings
+        ? getDayProgress(todayRecord, settings)
+        : { currentMinutes: 0, targetMinutes: 555, percent: 0 },
+    [todayRecord, settings, progressTick],
+  );
+
   const monthStats = useMemo(() => {
     const { start, end } = currentMonthRange();
     const monthRecords = records.filter((r) => r.date >= start && r.date <= end);
     const officeDays = monthRecords.filter(isOfficeDay).length;
     const required = settings?.officeDaysRequiredPerMonth ?? 10;
-    const lateCount = monthRecords.filter((r) => r.late).length;
     const attendancePct =
       required > 0 ? Math.min(100, Math.round((officeDays / required) * 100)) : 0;
 
-    return { monthRecords, officeDays, required, remaining: Math.max(0, required - officeDays), lateCount, attendancePct };
+    return { monthRecords, officeDays, required, remaining: Math.max(0, required - officeDays), attendancePct };
   }, [records, settings]);
 
-  const todayStats = useMemo(() => {
-    if (!todayRecord) {
-      return { status: 'No entry yet', total: 0, office: 0, wfh: 0 };
+  const todayHours = useMemo(() => {
+    if (!todayRecord?.punchIn) {
+      return { total: 0, office: 0, wfh: 0 };
     }
     return {
-      status: todayRecord.late ? 'Late arrival' : 'On track',
       total: todayRecord.totalHours,
       office: todayRecord.officeHours,
       wfh: todayRecord.wfhHours,
@@ -44,45 +67,54 @@ export function Dashboard() {
   }, [todayRecord]);
 
   const recentRecords = monthStats.monthRecords.slice(-14);
+  const targetMinutes = settings?.targetHoursMinutes ?? 9 * 60 + 15;
 
   return (
     <div className="space-y-5 animate-slide-up">
-      <div>
-        <p className="section-title">Today</p>
-        <h2 className="page-title mt-1">{formatDisplayDate(today)}</h2>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="section-title">Today</p>
+          <h2 className="page-title mt-1">{formatDisplayDate(today)}</h2>
+        </div>
+        <StatusBadge status={dayStatus} />
       </div>
 
-      <Card className="border-accent/20 bg-gradient-to-br from-accent/5 to-transparent">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-text-secondary">Status</p>
-            <p className="mt-1 text-xl font-semibold text-text-primary">{todayStats.status}</p>
-          </div>
-          <Link to="/entry" className="btn-primary px-4 py-2 text-sm">
-            {todayRecord ? 'Edit' : 'Log Time'}
+      <Card className="border-accent/20 bg-gradient-to-br from-accent/5 via-surface-elevated to-surface-elevated">
+        <DayProgressRing progress={dayProgress} />
+        <div className="mt-6 flex gap-2">
+          <Link to="/entry" className="btn-primary flex-1 text-center">
+            {dayStatus === 'Not Started'
+              ? 'Punch In'
+              : dayStatus === 'Working'
+                ? 'Punch Out'
+                : 'View Entry'}
           </Link>
         </div>
+      </Card>
+
+      <Card title="Today's Timeline">
+        <DayTimeline steps={timeline} />
       </Card>
 
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           label="Total Hours"
-          value={formatMinutesAsDuration(todayStats.total * 60)}
+          value={formatMinutesAsDuration(todayHours.total * 60)}
           hint="Today"
         />
         <StatCard
           label="Office Hours"
-          value={formatMinutesAsDuration(todayStats.office * 60)}
+          value={formatMinutesAsDuration(todayHours.office * 60)}
           hint="Today"
         />
         <StatCard
           label="WFH Hours"
-          value={formatMinutesAsDuration(todayStats.wfh * 60)}
+          value={formatMinutesAsDuration(todayHours.wfh * 60)}
           hint="Today"
         />
         <StatCard
           label="Target"
-          value={formatMinutesAsDuration(settings?.targetHoursMinutes ?? 555)}
+          value={formatMinutesAsDuration(targetMinutes)}
           hint="Daily goal"
         />
       </div>
@@ -118,11 +150,6 @@ export function Dashboard() {
             label="Remaining"
             value={String(monthStats.remaining)}
             accent={monthStats.remaining > 0 ? 'warning' : 'success'}
-          />
-          <StatCard
-            label="Late Arrivals"
-            value={String(monthStats.lateCount)}
-            accent={monthStats.lateCount > 0 ? 'danger' : 'success'}
           />
           <StatCard
             label="Entries This Month"

@@ -1,5 +1,32 @@
 import type { AppSettings, ComputedTimes } from '@/types';
-import { minutesBetween, parseTimeOnDate, timeToMinutes } from './time';
+import { minutesBetween, parseTimeOnDate } from './time';
+
+/** Schedule after punch in only (before punch out). */
+export function computePunchInOnly(
+  date: string,
+  punchIn: string,
+  settings: AppSettings,
+): Pick<
+  ComputedTimes,
+  'wfh1Start' | 'wfh1End' | 'wfh2Start' | 'wfh2End' | 'officeHours' | 'wfhHours' | 'totalHours'
+> {
+  const wfh1Start = settings.officialStartTime;
+  const wfh1EndDate = new Date(
+    parseTimeOnDate(date, punchIn).getTime() - settings.gapBeforeOfficeMinutes * 60000,
+  );
+  const wfh1End = formatTimeFromDate(wfh1EndDate);
+  const wfh1Minutes = Math.max(0, minutesBetween(parseTimeOnDate(date, wfh1Start), wfh1EndDate));
+
+  return {
+    wfh1Start,
+    wfh1End,
+    wfh2Start: '',
+    wfh2End: '',
+    officeHours: 0,
+    wfhHours: wfh1Minutes / 60,
+    totalHours: wfh1Minutes / 60,
+  };
+}
 
 export function computeAttendance(
   date: string,
@@ -41,9 +68,6 @@ export function computeAttendance(
   const wfhMinutes = wfh1Minutes + wfh2Minutes;
   const totalMinutes = officeMinutes + wfhMinutes;
 
-  const officialStartMinutes = timeToMinutes(settings.officialStartTime);
-  const late = timeToMinutes(punchIn) > officialStartMinutes;
-
   return {
     wfh1Start,
     wfh1End,
@@ -52,7 +76,6 @@ export function computeAttendance(
     officeHours: officeMinutes / 60,
     wfhHours: wfhMinutes / 60,
     totalHours: totalMinutes / 60,
-    late,
   };
 }
 

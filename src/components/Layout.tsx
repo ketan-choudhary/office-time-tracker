@@ -3,7 +3,7 @@ import { useTheme } from '@/hooks/useTheme';
 
 const navItems = [
   { to: '/', label: 'Home', icon: '◉' },
-  { to: '/entry', label: 'Entry', icon: '✎' },
+  { to: '/entry', label: 'Punch', icon: '⏱' },
   { to: '/history', label: 'History', icon: '☰' },
   { to: '/analytics', label: 'Stats', icon: '◧' },
   { to: '/settings', label: 'More', icon: '⚙' },

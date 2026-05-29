@@ -4,7 +4,6 @@ import { Card } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
 import { AttendanceChart } from '@/components/charts/AttendanceChart';
 import { HoursChart } from '@/components/charts/HoursChart';
-import { LateChart } from '@/components/charts/LateChart';
 import { useAllRecords, useSettings } from '@/hooks/useRecords';
 import { isOfficeDay } from '@/utils/calculations';
 import {
@@ -65,24 +64,6 @@ export function Analytics() {
     return months;
   }, [records, settings]);
 
-  const lateTrend = useMemo(() => {
-    const months: { month: string; late: number; onTime: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const ref = subMonths(new Date(), i);
-      const mStart = format(new Date(ref.getFullYear(), ref.getMonth(), 1), 'yyyy-MM-dd');
-      const mEnd = format(new Date(ref.getFullYear(), ref.getMonth() + 1, 0), 'yyyy-MM-dd');
-      const mRecords = records.filter(
-        (r) => r.date >= mStart && r.date <= mEnd && r.status === 'complete',
-      );
-      months.push({
-        month: format(ref, 'MMM'),
-        late: mRecords.filter((r) => r.late).length,
-        onTime: mRecords.filter((r) => !r.late).length,
-      });
-    }
-    return months;
-  }, [records]);
-
   const last30 = useMemo(() => {
     const cutoff = format(subMonths(new Date(), 1), 'yyyy-MM-dd');
     return records.filter((r) => r.date >= cutoff).slice(0, 30).reverse();
@@ -134,10 +115,6 @@ export function Analytics() {
 
       <Card title="Hours Trend" subtitle="Recent entries">
         <HoursChart records={last30} />
-      </Card>
-
-      <Card title="Late Arrivals" subtitle="Last 6 months">
-        <LateChart data={lateTrend} />
       </Card>
     </div>
   );
