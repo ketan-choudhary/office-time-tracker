@@ -1,0 +1,98 @@
+import type { AppSettings, ComputedTimes } from '@/types';
+import { minutesBetween, parseTimeOnDate, timeToMinutes } from './time';
+
+export function computeAttendance(
+  date: string,
+  punchIn: string,
+  punchOut: string,
+  settings: AppSettings,
+): ComputedTimes {
+  const punchInDate = parseTimeOnDate(date, punchIn);
+  const punchOutDate = parseTimeOnDate(date, punchOut);
+
+  if (punchOutDate <= punchInDate) {
+    throw new Error('Punch out must be after punch in.');
+  }
+
+  const wfh1Start = settings.officialStartTime;
+  const wfh1EndDate = new Date(
+    parseTimeOnDate(date, punchIn).getTime() - settings.gapBeforeOfficeMinutes * 60000,
+  );
+  const wfh1End = formatTimeFromDate(wfh1EndDate);
+
+  const officeMinutes = minutesBetween(punchInDate, punchOutDate);
+
+  const wfh1StartDate = parseTimeOnDate(date, wfh1Start);
+  const wfh1Minutes = Math.max(0, minutesBetween(wfh1StartDate, wfh1EndDate));
+
+  const wfh2StartDate = new Date(
+    punchOutDate.getTime() + settings.gapAfterOfficeMinutes * 60000,
+  );
+  const wfh2Start = formatTimeFromDate(wfh2StartDate);
+
+  const wfh2Minutes = Math.max(
+    0,
+    settings.targetHoursMinutes - officeMinutes - wfh1Minutes,
+  );
+
+  const wfh2EndDate = new Date(wfh2StartDate.getTime() + wfh2Minutes * 60000);
+  const wfh2End = formatTimeFromDate(wfh2EndDate);
+
+  const wfhMinutes = wfh1Minutes + wfh2Minutes;
+  const totalMinutes = officeMinutes + wfhMinutes;
+
+  const officialStartMinutes = timeToMinutes(settings.officialStartTime);
+  const late = timeToMinutes(punchIn) > officialStartMinutes;
+
+  return {
+    wfh1Start,
+    wfh1End,
+    wfh2Start,
+    wfh2End,
+    officeHours: officeMinutes / 60,
+    wfhHours: wfhMinutes / 60,
+    totalHours: totalMinutes / 60,
+    late,
+  };
+}
+
+function formatTimeFromDate(d: Date): string {
+  const h = d.getHours();
+  const m = d.getMinutes();
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+export function isOfficeDay(record: { punchIn: string; punchOut: string; status: string }): boolean {
+  return (
+    record.status === 'complete' &&
+    Boolean(record.punchIn) &&
+    Boolean(record.punchOut)
+  );
+}
+
+export function parseDurationInput(value: string): number {
+  const trimmed = value.trim().toLowerCase();
+  const hMatch = trimmed.match(/(\d+)\s*h/);
+  const mMatch = trimmed.match(/(\d+)\s*m/);
+  const colonMatch = trimmed.match(/^(\d+):(\d+)$/);
+
+  if (colonMatch) {
+    return parseInt(colonMatch[1], 10) * 60 + parseInt(colonMatch[2], 10);
+  }
+
+  let minutes = 0;
+  if (hMatch) minutes += parseInt(hMatch[1], 10) * 60;
+  if (mMatch) minutes += parseInt(mMatch[1], 10);
+  if (!hMatch && !mMatch) {
+    const num = parseFloat(trimmed);
+    if (!Number.isNaN(num)) minutes = Math.round(num * 60);
+  }
+  return minutes;
+}
+
+export function formatDurationInput(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
