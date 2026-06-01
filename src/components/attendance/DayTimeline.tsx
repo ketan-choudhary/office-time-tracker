@@ -30,7 +30,7 @@ export function DayTimeline({ steps }: DayTimelineProps) {
           <div className="min-w-0 flex-1 pt-0.5">
             <p className="text-sm font-medium text-text-primary">{step.label}</p>
             <p
-              className={`mt-0.5 text-lg font-semibold tracking-tight ${
+              className={`mt-0.5 font-mono text-lg font-semibold tabular-nums tracking-tight ${
                 step.time ? 'text-text-primary' : 'text-text-muted'
               }`}
             >

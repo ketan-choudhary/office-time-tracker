@@ -36,13 +36,25 @@ export function minutesToHoursDecimal(minutes: number): number {
   return Math.round((minutes / 60) * 100) / 100;
 }
 
-export function formatMinutesAsDuration(minutes: number): string {
-  const abs = Math.abs(Math.round(minutes));
+/**
+ * Format a duration in minutes as HH:MM (e.g. 510 → "08:30", 600 → "10:00").
+ * Hours are not capped at 23 — suitable for daily and monthly totals.
+ */
+export function formatDurationHHMM(totalMinutes: number): string {
+  const abs = Math.abs(Math.round(totalMinutes));
   const h = Math.floor(abs / 60);
   const m = abs % 60;
-  if (h === 0) return `${m}m`;
-  if (m === 0) return `${h}h`;
-  return `${h}h ${m}m`;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** Format decimal hours (internal storage) as HH:MM for display. */
+export function formatDurationFromHours(hours: number): string {
+  return formatDurationHHMM(Math.round(hours * 60));
+}
+
+/** @deprecated Use formatDurationHHMM — kept as alias for existing imports. */
+export function formatMinutesAsDuration(minutes: number): string {
+  return formatDurationHHMM(minutes);
 }
 
 export function formatMinutesAsClock(minutes: number): string {
@@ -51,11 +63,16 @@ export function formatMinutesAsClock(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-export function formatTime12h(timeStr: string): string {
+/** Display a clock time in 24-hour HH:mm format. */
+export function formatTime24h(timeStr: string): string {
   const [h, m] = timeStr.split(':').map(Number);
-  const period = h >= 12 ? 'PM' : 'AM';
-  const hour12 = h % 12 || 12;
-  return `${hour12}:${String(m).padStart(2, '0')} ${period}`;
+  if (Number.isNaN(h) || Number.isNaN(m)) return timeStr;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** @deprecated Use formatTime24h */
+export function formatTime12h(timeStr: string): string {
+  return formatTime24h(timeStr);
 }
 
 export function timeToMinutes(timeStr: string): number {

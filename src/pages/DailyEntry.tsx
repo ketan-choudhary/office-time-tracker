@@ -11,7 +11,12 @@ import {
   useSettings,
 } from '@/hooks/useRecords';
 import { buildTimeline, getDayStatus } from '@/utils/attendance';
-import { formatDisplayDate, formatTime12h, todayDateString } from '@/utils/time';
+import {
+  formatDisplayDate,
+  formatDurationFromHours,
+  formatTime24h,
+  todayDateString,
+} from '@/utils/time';
 
 type EditField = 'in' | 'out' | null;
 
@@ -151,9 +156,16 @@ export function DailyEntry() {
       {record?.status === 'complete' && record.punchOut && (
         <Card title="Summary" subtitle="Calculated after punch out">
           <div className="grid grid-cols-3 gap-3 text-center">
-            <SummaryCell label="Office" value={`${record.officeHours.toFixed(1)}h`} />
-            <SummaryCell label="WFH" value={`${record.wfhHours.toFixed(1)}h`} />
-            <SummaryCell label="Total" value={`${record.totalHours.toFixed(1)}h`} highlight />
+            <SummaryCell
+              label="Office"
+              value={formatDurationFromHours(record.officeHours)}
+            />
+            <SummaryCell label="WFH" value={formatDurationFromHours(record.wfhHours)} />
+            <SummaryCell
+              label="Total"
+              value={formatDurationFromHours(record.totalHours)}
+              highlight
+            />
           </div>
         </Card>
       )}
@@ -202,7 +214,7 @@ function PunchSection({
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Recorded</p>
             <p className="text-xl font-bold tracking-tight text-text-primary">
-              {formatTime12h(time)}
+              {formatTime24h(time)}
             </p>
           </div>
           {canEdit && (
@@ -259,7 +271,9 @@ function SummaryCell({
   return (
     <div className="rounded-xl bg-surface-muted px-2 py-3">
       <p className="text-xs text-text-muted">{label}</p>
-      <p className={`font-semibold ${highlight ? 'text-accent' : 'text-text-primary'}`}>
+      <p
+        className={`font-mono font-semibold tabular-nums ${highlight ? 'text-accent' : 'text-text-primary'}`}
+      >
         {value}
       </p>
     </div>

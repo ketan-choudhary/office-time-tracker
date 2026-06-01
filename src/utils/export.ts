@@ -1,4 +1,5 @@
 import type { AttendanceRecord, AppSettings } from '@/types';
+import { formatDurationFromHours, formatTime24h } from './time';
 
 const CSV_HEADERS = [
   'Date',
@@ -27,20 +28,24 @@ function dayName(dateStr: string): string {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short' });
 }
 
+function formatCsvTime(time: string): string {
+  return time ? formatTime24h(time) : '';
+}
+
 export function recordsToCsv(records: AttendanceRecord[]): string {
   const rows = records.map((r) =>
     [
       r.date,
       dayName(r.date),
-      r.wfh1Start,
-      r.wfh1End,
-      r.punchIn,
-      r.punchOut,
-      r.wfh2Start,
-      r.wfh2End,
-      r.officeHours.toFixed(2),
-      r.wfhHours.toFixed(2),
-      r.totalHours.toFixed(2),
+      formatCsvTime(r.wfh1Start),
+      formatCsvTime(r.wfh1End),
+      formatCsvTime(r.punchIn),
+      formatCsvTime(r.punchOut),
+      formatCsvTime(r.wfh2Start),
+      formatCsvTime(r.wfh2End),
+      formatDurationFromHours(r.officeHours),
+      formatDurationFromHours(r.wfhHours),
+      formatDurationFromHours(r.totalHours),
       r.status,
     ]
       .map(escapeCsv)

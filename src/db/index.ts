@@ -2,6 +2,14 @@ import Dexie, { type EntityTable } from 'dexie';
 import type { AppSettings, AttendanceRecord } from '@/types';
 import { DEFAULT_SETTINGS } from '@/types';
 
+type LegacyRecord = AttendanceRecord & { late?: boolean };
+
+function stripLegacyLate(record: LegacyRecord): AttendanceRecord {
+  const copy = { ...record };
+  delete copy.late;
+  return copy;
+}
+
 class OfficeTimeDB extends Dexie {
   records!: EntityTable<AttendanceRecord, 'id'>;
   settings!: EntityTable<AppSettings, 'id'>;
@@ -20,10 +28,9 @@ class OfficeTimeDB extends Dexie {
       .upgrade(async (tx) => {
         const records = await tx.table('records').toArray();
         await Promise.all(
-          records.map((record) => {
-            const { late: _late, ...rest } = record as AttendanceRecord & { late?: boolean };
-            return tx.table('records').put(rest);
-          }),
+          records.map((record) =>
+            tx.table('records').put(stripLegacyLate(record as LegacyRecord)),
+          ),
         );
       });
   }
@@ -75,10 +82,7 @@ export async function getRecordsInRange(
 }
 
 export async function importRecords(records: AttendanceRecord[]): Promise<void> {
-  const normalized = records.map((record) => {
-    const { late: _late, ...rest } = record as AttendanceRecord & { late?: boolean };
-    return rest;
-  });
+  const normalized = records.map((record) => stripLegacyLate(record as LegacyRecord));
   await db.records.bulkPut(normalized);
 }
 

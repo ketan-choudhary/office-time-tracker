@@ -8,7 +8,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { AttendanceRecord } from '@/types';
-import { formatShortDate } from '@/utils/time';
+import { formatDurationFromHours, formatShortDate } from '@/utils/time';
 
 interface HoursChartProps {
   records: AttendanceRecord[];
@@ -17,9 +17,9 @@ interface HoursChartProps {
 export function HoursChart({ records }: HoursChartProps) {
   const data = records.map((r) => ({
     date: formatShortDate(r.date),
-    office: Number(r.officeHours.toFixed(2)),
-    wfh: Number(r.wfhHours.toFixed(2)),
-    total: Number(r.totalHours.toFixed(2)),
+    office: r.officeHours,
+    wfh: r.wfhHours,
+    total: r.totalHours,
   }));
 
   if (data.length === 0) {
@@ -43,7 +43,10 @@ export function HoursChart({ records }: HoursChartProps) {
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border))" vertical={false} />
         <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'rgb(var(--color-text-muted))' }} />
-        <YAxis tick={{ fontSize: 11, fill: 'rgb(var(--color-text-muted))' }} />
+        <YAxis
+          tick={{ fontSize: 11, fill: 'rgb(var(--color-text-muted))' }}
+          tickFormatter={(v: number) => formatDurationFromHours(v)}
+        />
         <Tooltip
           contentStyle={{
             background: 'rgb(var(--color-surface-elevated))',
@@ -51,6 +54,10 @@ export function HoursChart({ records }: HoursChartProps) {
             borderRadius: 12,
             fontSize: 13,
           }}
+          formatter={(value: number, name: string) => [
+            formatDurationFromHours(value),
+            name,
+          ]}
         />
         <Area
           type="monotone"

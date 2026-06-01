@@ -1,5 +1,13 @@
 import type { AppSettings, AttendanceRecord } from '@/types';
-import { currentLocalTime, formatTime12h, minutesBetween, parseTimeOnDate } from './time';
+import {
+  currentLocalTime,
+  formatTime24h,
+  minutesBetween,
+  parseTimeOnDate,
+} from './time';
+
+/** Infosys-style minimum office presence target (3h 30m). */
+export const OFFICE_HOURS_TARGET_MINUTES = 3 * 60 + 30;
 
 export type DayStatus = 'Not Started' | 'Working' | 'Completed';
 
@@ -22,7 +30,7 @@ export function getDayStatus(record?: AttendanceRecord | null): DayStatus {
 }
 
 export function formatTimeLabel(time: string | null | undefined): string {
-  return time ? formatTime12h(time) : '—';
+  return time ? formatTime24h(time) : '—';
 }
 
 export function buildTimeline(
@@ -97,4 +105,39 @@ export function getDayProgress(
     targetMinutes > 0 ? Math.min(100, Math.round((currentMinutes / targetMinutes) * 100)) : 0;
 
   return { currentMinutes, targetMinutes, percent };
+}
+
+export function getOfficeHoursProgress(
+  record: AttendanceRecord | null | undefined,
+): DayProgress {
+  const targetMinutes = OFFICE_HOURS_TARGET_MINUTES;
+
+  if (!record?.punchIn) {
+    return { currentMinutes: 0, targetMinutes, percent: 0 };
+  }
+
+  if (record.status === 'complete' && record.punchOut) {
+    const currentMinutes = Math.round(record.officeHours * 60);
+    const percent =
+      targetMinutes > 0 ? Math.round((currentMinutes / targetMinutes) * 100) : 0;
+    return { currentMinutes, targetMinutes, percent };
+  }
+
+  const date = record.date;
+  const punchInDate = parseTimeOnDate(date, record.punchIn);
+  const nowOnDate = parseTimeOnDate(date, currentLocalTime());
+  const officeMinutes =
+    nowOnDate > punchInDate ? minutesBetween(punchInDate, nowOnDate) : 0;
+  const percent =
+    targetMinutes > 0 ? Math.round((officeMinutes / targetMinutes) * 100) : 0;
+
+  return { currentMinutes: officeMinutes, targetMinutes, percent };
+}
+
+/** Ring stroke / text color for office-hours progress (0–40% red → 100%+ green). */
+export function getOfficeHoursProgressColor(percent: number): string {
+  if (percent >= 100) return 'text-success';
+  if (percent >= 80) return 'text-[#84cc16]';
+  if (percent >= 40) return 'text-warning';
+  return 'text-danger';
 }

@@ -9,8 +9,8 @@ import { isOfficeDay } from '@/utils/calculations';
 import {
   averageTimeStrings,
   currentMonthRange,
-  formatMinutesAsDuration,
-  formatTime12h,
+  formatDurationFromHours,
+  formatTime24h,
 } from '@/utils/time';
 
 export function Analytics() {
@@ -79,24 +79,22 @@ export function Analytics() {
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           label="Avg Punch In"
-          value={averages.avgIn ? formatTime12h(averages.avgIn) : '—'}
+          value={averages.avgIn ? formatTime24h(averages.avgIn) : '—'}
         />
         <StatCard
           label="Avg Punch Out"
-          value={averages.avgOut ? formatTime12h(averages.avgOut) : '—'}
+          value={averages.avgOut ? formatTime24h(averages.avgOut) : '—'}
         />
         <StatCard
           label="Avg Office Hours"
           value={
-            averages.avgOffice > 0
-              ? formatMinutesAsDuration(averages.avgOffice * 60)
-              : '—'
+            averages.avgOffice > 0 ? formatDurationFromHours(averages.avgOffice) : '—'
           }
         />
         <StatCard
           label="Avg Total Hours"
           value={
-            averages.avgTotal > 0 ? formatMinutesAsDuration(averages.avgTotal * 60) : '—'
+            averages.avgTotal > 0 ? formatDurationFromHours(averages.avgTotal) : '—'
           }
         />
       </div>

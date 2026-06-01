@@ -3,17 +3,26 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { DayProgressRing } from '@/components/attendance/DayProgressRing';
 import { DayTimeline } from '@/components/attendance/DayTimeline';
+import { OfficeHoursProgressRing } from '@/components/attendance/OfficeHoursProgressRing';
+import { SkipOfficeCard } from '@/components/attendance/SkipOfficeCard';
 import { StatusBadge } from '@/components/attendance/StatusBadge';
 import { Card } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
 import { HoursChart } from '@/components/charts/HoursChart';
 import { useAllRecords, useSettings, useTodayRecord } from '@/hooks/useRecords';
-import { buildTimeline, getDayProgress, getDayStatus } from '@/utils/attendance';
+import {
+  buildTimeline,
+  getDayProgress,
+  getDayStatus,
+  getOfficeHoursProgress,
+} from '@/utils/attendance';
+import { evaluateSkipOfficeTomorrow } from '@/utils/compliance';
 import { isOfficeDay } from '@/utils/calculations';
 import {
   currentMonthRange,
   formatDisplayDate,
-  formatMinutesAsDuration,
+  formatDurationFromHours,
+  formatDurationHHMM,
   todayDateString,
 } from '@/utils/time';
 
@@ -43,6 +52,10 @@ export function Dashboard() {
         : { currentMinutes: 0, targetMinutes: 555, percent: 0 },
     [todayRecord, settings, progressTick],
   );
+  const officeProgress = useMemo(() => {
+    void progressTick;
+    return getOfficeHoursProgress(todayRecord);
+  }, [todayRecord, progressTick]);
 
   const monthStats = useMemo(() => {
     const { start, end } = currentMonthRange();
@@ -52,8 +65,23 @@ export function Dashboard() {
     const attendancePct =
       required > 0 ? Math.min(100, Math.round((officeDays / required) * 100)) : 0;
 
-    return { monthRecords, officeDays, required, remaining: Math.max(0, required - officeDays), attendancePct };
+    return {
+      monthRecords,
+      officeDays,
+      required,
+      remaining: Math.max(0, required - officeDays),
+      attendancePct,
+    };
   }, [records, settings]);
+
+  const skipVerdict = useMemo(
+    () =>
+      evaluateSkipOfficeTomorrow(
+        monthStats.officeDays,
+        monthStats.required,
+      ),
+    [monthStats.officeDays, monthStats.required],
+  );
 
   const todayHours = useMemo(() => {
     if (!todayRecord?.punchIn) {
@@ -79,18 +107,22 @@ export function Dashboard() {
         <StatusBadge status={dayStatus} />
       </div>
 
-      <Card className="border-accent/20 bg-gradient-to-br from-accent/5 via-surface-elevated to-surface-elevated">
-        <DayProgressRing progress={dayProgress} />
-        <div className="mt-6 flex gap-2">
-          <Link to="/entry" className="btn-primary flex-1 text-center">
-            {dayStatus === 'Not Started'
-              ? 'Punch In'
-              : dayStatus === 'Working'
-                ? 'Punch Out'
-                : 'View Entry'}
-          </Link>
-        </div>
-      </Card>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="border-accent/20 bg-gradient-to-br from-accent/5 via-surface-elevated to-surface-elevated">
+          <DayProgressRing progress={dayProgress} />
+        </Card>
+        <Card className="border-border bg-surface-elevated">
+          <OfficeHoursProgressRing progress={officeProgress} />
+        </Card>
+      </div>
+
+      <Link to="/entry" className="btn-primary flex w-full justify-center">
+        {dayStatus === 'Not Started'
+          ? 'Punch In'
+          : dayStatus === 'Working'
+            ? 'Punch Out'
+            : 'View Entry'}
+      </Link>
 
       <Card title="Today's Timeline">
         <DayTimeline steps={timeline} />
@@ -99,25 +131,52 @@ export function Dashboard() {
       <div className="grid grid-cols-2 gap-3">
         <StatCard
           label="Total Hours"
-          value={formatMinutesAsDuration(todayHours.total * 60)}
+          value={formatDurationFromHours(todayHours.total)}
           hint="Today"
         />
         <StatCard
           label="Office Hours"
-          value={formatMinutesAsDuration(todayHours.office * 60)}
+          value={formatDurationFromHours(todayHours.office)}
           hint="Today"
         />
         <StatCard
           label="WFH Hours"
-          value={formatMinutesAsDuration(todayHours.wfh * 60)}
+          value={formatDurationFromHours(todayHours.wfh)}
           hint="Today"
         />
         <StatCard
           label="Target"
-          value={formatMinutesAsDuration(targetMinutes)}
+          value={formatDurationHHMM(targetMinutes)}
           hint="Daily goal"
         />
       </div>
+
+      <Card title="Office Days Progress" subtitle={format(new Date(), 'MMMM yyyy')}>
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="font-mono text-4xl font-bold tracking-tight text-text-primary">
+              {monthStats.officeDays}
+              <span className="text-2xl font-semibold text-text-muted">
+                {' '}
+                / {monthStats.required}
+              </span>
+            </p>
+            <p className="mt-1 text-sm text-text-secondary">Completed office days</p>
+          </div>
+          <div className="rounded-2xl bg-surface-muted px-4 py-3 text-right">
+            <p className="text-2xl font-bold text-accent">{monthStats.remaining}</p>
+            <p className="text-xs font-medium text-text-muted">Remaining</p>
+          </div>
+        </div>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-muted">
+          <div
+            className="h-full rounded-full bg-accent transition-all duration-500"
+            style={{ width: `${monthStats.attendancePct}%` }}
+          />
+        </div>
+      </Card>
+
+      <SkipOfficeCard verdict={skipVerdict} />
 
       <Card title="Monthly Attendance" subtitle={format(new Date(), 'MMMM yyyy')}>
         <div className="mb-4 flex items-end justify-between">
@@ -127,35 +186,11 @@ export function Dashboard() {
             </p>
             <p className="text-sm text-text-secondary">of required office days</p>
           </div>
-          <div className="text-right text-sm text-text-secondary">
-            <p>
-              <span className="font-semibold text-text-primary">{monthStats.officeDays}</span> /{' '}
-              {monthStats.required} days
-            </p>
-          </div>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
-          <div
-            className="h-full rounded-full bg-accent transition-all duration-500"
-            style={{ width: `${monthStats.attendancePct}%` }}
-          />
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          <StatCard
-            label="Office Days Done"
-            value={String(monthStats.officeDays)}
-            accent="success"
-          />
-          <StatCard
-            label="Remaining"
-            value={String(monthStats.remaining)}
-            accent={monthStats.remaining > 0 ? 'warning' : 'success'}
-          />
-          <StatCard
-            label="Entries This Month"
-            value={String(monthStats.monthRecords.length)}
-          />
-        </div>
+        <StatCard
+          label="Entries This Month"
+          value={String(monthStats.monthRecords.length)}
+        />
       </Card>
 
       <Card title="Hours Trend" subtitle="Last 14 office days">

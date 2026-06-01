@@ -1,14 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/Card';
+import { DurationChip } from '@/components/attendance/DurationChip';
 import { useAllRecords } from '@/hooks/useRecords';
 import { formatTimeLabel } from '@/utils/attendance';
-import {
-  currentMonthRange,
-  formatDayName,
-  previousMonthRange,
-} from '@/utils/time';
+import { currentMonthRange, formatDayName, previousMonthRange } from '@/utils/time';
 
 type FilterMode = 'current' | 'previous' | 'custom';
+
+function sumHours(
+  records: { officeHours: number; wfhHours: number; totalHours: number }[],
+  key: 'officeHours' | 'wfhHours' | 'totalHours',
+): number {
+  return records.reduce((sum, r) => sum + r[key], 0);
+}
 
 export function History() {
   const records = useAllRecords() ?? [];
@@ -30,6 +34,22 @@ export function History() {
     }
     return records;
   }, [records, filter, customStart, customEnd]);
+
+  const periodLabel = useMemo(() => {
+    if (filter === 'current') return 'This month';
+    if (filter === 'previous') return 'Last month';
+    if (customStart && customEnd) return `${customStart} – ${customEnd}`;
+    return 'All records';
+  }, [filter, customStart, customEnd]);
+
+  const totals = useMemo(
+    () => ({
+      office: sumHours(filtered, 'officeHours'),
+      wfh: sumHours(filtered, 'wfhHours'),
+      total: sumHours(filtered, 'totalHours'),
+    }),
+    [filtered],
+  );
 
   return (
     <div className="space-y-5 animate-slide-up">
@@ -74,6 +94,18 @@ export function History() {
         )}
       </Card>
 
+      <Card title="Period Summary" subtitle={periodLabel}>
+        <div className="grid grid-cols-3 gap-3">
+          <SummaryTotal
+            label="Total Office Hours"
+            hours={totals.office}
+            kind="office"
+          />
+          <SummaryTotal label="Total WFH Hours" hours={totals.wfh} kind="wfh" />
+          <SummaryTotal label="Total Hours" hours={totals.total} kind="total" />
+        </div>
+      </Card>
+
       <div className="-mx-4 overflow-x-auto px-4">
         <table className="w-full min-w-[900px] border-collapse text-sm">
           <thead>
@@ -86,8 +118,8 @@ export function History() {
               <th className="px-2 py-2">Out</th>
               <th className="px-2 py-2">WFH2 S</th>
               <th className="px-2 py-2">WFH2 E</th>
-              <th className="px-2 py-2">Office</th>
-              <th className="px-2 py-2">WFH</th>
+              <th className="px-2 py-2 text-accent">Office</th>
+              <th className="px-2 py-2 text-success">WFH</th>
               <th className="px-2 py-2">Total</th>
               <th className="px-2 py-2">Status</th>
             </tr>
@@ -107,21 +139,58 @@ export function History() {
                 >
                   <td className="whitespace-nowrap px-2 py-2.5 font-medium">{r.date}</td>
                   <td className="px-2 py-2.5">{formatDayName(r.date)}</td>
-                  <td className="px-2 py-2.5">{formatTimeLabel(r.wfh1Start)}</td>
-                  <td className="px-2 py-2.5">{formatTimeLabel(r.wfh1End)}</td>
-                  <td className="px-2 py-2.5">{formatTimeLabel(r.punchIn)}</td>
-                  <td className="px-2 py-2.5">{formatTimeLabel(r.punchOut)}</td>
-                  <td className="px-2 py-2.5">{formatTimeLabel(r.wfh2Start)}</td>
-                  <td className="px-2 py-2.5">{formatTimeLabel(r.wfh2End)}</td>
-                  <td className="px-2 py-2.5">{r.officeHours.toFixed(1)}h</td>
-                  <td className="px-2 py-2.5">{r.wfhHours.toFixed(1)}h</td>
-                  <td className="px-2 py-2.5 font-medium">{r.totalHours.toFixed(1)}h</td>
+                  <td className="px-2 py-2.5 font-mono tabular-nums">
+                    {formatTimeLabel(r.wfh1Start)}
+                  </td>
+                  <td className="px-2 py-2.5 font-mono tabular-nums">
+                    {formatTimeLabel(r.wfh1End)}
+                  </td>
+                  <td className="px-2 py-2.5 font-mono tabular-nums">
+                    {formatTimeLabel(r.punchIn)}
+                  </td>
+                  <td className="px-2 py-2.5 font-mono tabular-nums">
+                    {formatTimeLabel(r.punchOut)}
+                  </td>
+                  <td className="px-2 py-2.5 font-mono tabular-nums">
+                    {formatTimeLabel(r.wfh2Start)}
+                  </td>
+                  <td className="px-2 py-2.5 font-mono tabular-nums">
+                    {formatTimeLabel(r.wfh2End)}
+                  </td>
+                  <td className="px-2 py-2.5">
+                    <DurationChip kind="office" hours={r.officeHours} />
+                  </td>
+                  <td className="px-2 py-2.5">
+                    <DurationChip kind="wfh" hours={r.wfhHours} />
+                  </td>
+                  <td className="px-2 py-2.5">
+                    <DurationChip kind="total" hours={r.totalHours} />
+                  </td>
                   <td className="px-2 py-2.5 capitalize">{r.status}</td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+function SummaryTotal({
+  label,
+  hours,
+  kind,
+}: {
+  label: string;
+  hours: number;
+  kind: 'office' | 'wfh' | 'total';
+}) {
+  return (
+    <div className="rounded-xl bg-surface-muted px-3 py-3 text-center">
+      <p className="text-xs font-medium text-text-muted">{label}</p>
+      <div className="mt-2 flex justify-center">
+        <DurationChip kind={kind} hours={hours} className="text-base" />
       </div>
     </div>
   );
