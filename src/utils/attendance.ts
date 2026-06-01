@@ -102,6 +102,13 @@ export function getDayProgress(
   const targetMinutes = settings.targetHoursMinutes;
   const live = options?.live ?? false;
 
+  if (record?.dayType === 'WFH' && record.status === 'complete') {
+    const currentMinutes = Math.round((record.wfhHours || record.totalHours) * 60);
+    const percent =
+      targetMinutes > 0 ? Math.min(100, Math.round((currentMinutes / targetMinutes) * 100)) : 0;
+    return { currentMinutes, targetMinutes, percent };
+  }
+
   if (!record?.punchIn) {
     return { currentMinutes: 0, targetMinutes, percent: 0 };
   }
