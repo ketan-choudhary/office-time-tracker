@@ -1,4 +1,5 @@
-import type { AppSettings, ComputedTimes } from '@/types';
+import type { AppSettings, AttendanceRecord, ComputedTimes } from '@/types';
+import { resolveDayType } from './recordHelpers';
 import { minutesBetween, parseTimeOnDate } from './time';
 
 /** Schedule after punch in only (before punch out). */
@@ -85,7 +86,8 @@ function formatTimeFromDate(d: Date): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-export function isOfficeDay(record: { punchIn: string; punchOut: string; status: string }): boolean {
+export function isOfficeDay(record: AttendanceRecord): boolean {
+  if (resolveDayType(record) !== 'OFFICE') return false;
   return (
     record.status === 'complete' &&
     Boolean(record.punchIn) &&

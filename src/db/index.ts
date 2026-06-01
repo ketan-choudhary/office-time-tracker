@@ -1,14 +1,9 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { AppSettings, AttendanceRecord } from '@/types';
 import { DEFAULT_SETTINGS } from '@/types';
+import { normalizeRecord } from '@/utils/recordHelpers';
 
-type LegacyRecord = AttendanceRecord & { late?: boolean };
-
-function stripLegacyLate(record: LegacyRecord): AttendanceRecord {
-  const copy = { ...record };
-  delete copy.late;
-  return copy;
-}
+type LegacyRecord = AttendanceRecord & { late?: boolean; dayType?: AttendanceRecord['dayType'] };
 
 class OfficeTimeDB extends Dexie {
   records!: EntityTable<AttendanceRecord, 'id'>;
@@ -29,8 +24,25 @@ class OfficeTimeDB extends Dexie {
         const records = await tx.table('records').toArray();
         await Promise.all(
           records.map((record) =>
-            tx.table('records').put(stripLegacyLate(record as LegacyRecord)),
+            tx.table('records').put(normalizeRecord(record as LegacyRecord)),
           ),
+        );
+      });
+    this.version(3)
+      .stores({
+        records: 'id, date',
+        settings: 'id',
+      })
+      .upgrade(async (tx) => {
+        const records = await tx.table('records').toArray();
+        await Promise.all(
+          records.map((record) => {
+            const normalized = normalizeRecord(record as LegacyRecord);
+            return tx.table('records').put({
+              ...normalized,
+              dayType: normalized.dayType ?? 'OFFICE',
+            });
+          }),
         );
       });
   }
@@ -55,11 +67,12 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
 }
 
 export async function getRecordByDate(date: string): Promise<AttendanceRecord | undefined> {
-  return db.records.where('date').equals(date).first();
+  const record = await db.records.where('date').equals(date).first();
+  return record ? normalizeRecord(record as LegacyRecord) : undefined;
 }
 
 export async function saveRecord(record: AttendanceRecord): Promise<void> {
-  await db.records.put(record);
+  await db.records.put(normalizeRecord(record));
 }
 
 export async function deleteRecord(id: string): Promise<void> {
@@ -67,22 +80,24 @@ export async function deleteRecord(id: string): Promise<void> {
 }
 
 export async function getAllRecords(): Promise<AttendanceRecord[]> {
-  return db.records.orderBy('date').reverse().toArray();
+  const records = await db.records.orderBy('date').reverse().toArray();
+  return records.map((r) => normalizeRecord(r as LegacyRecord));
 }
 
 export async function getRecordsInRange(
   startDate: string,
   endDate: string,
 ): Promise<AttendanceRecord[]> {
-  return db.records
+  const records = await db.records
     .where('date')
     .between(startDate, endDate, true, true)
     .reverse()
     .sortBy('date');
+  return records.map((r) => normalizeRecord(r as LegacyRecord));
 }
 
 export async function importRecords(records: AttendanceRecord[]): Promise<void> {
-  const normalized = records.map((record) => stripLegacyLate(record as LegacyRecord));
+  const normalized = records.map((record) => normalizeRecord(record as LegacyRecord));
   await db.records.bulkPut(normalized);
 }
 

@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
+import { AttendanceActions } from '@/components/attendance/AttendanceActions';
 import { Card } from '@/components/ui/Card';
+import { Toast } from '@/components/ui/Toast';
+import { DateSelector } from '@/components/attendance/DateSelector';
 import { DayTimeline } from '@/components/attendance/DayTimeline';
 import { StatusBadge } from '@/components/attendance/StatusBadge';
+import { useSelectedDate } from '@/hooks/useSelectedDate';
 import {
   recordPunchIn,
   recordPunchOut,
@@ -10,26 +14,37 @@ import {
   useRecordByDate,
   useSettings,
 } from '@/hooks/useRecords';
-import { buildTimeline, getDayStatus } from '@/utils/attendance';
+import { buildTimeline, getDisplayStatus } from '@/utils/attendance';
+import { resolveDayType } from '@/utils/recordHelpers';
 import {
-  formatDisplayDate,
   formatDurationFromHours,
   formatTime24h,
-  todayDateString,
 } from '@/utils/time';
+import { WFH_DAY_END, WFH_DAY_START } from '@/types';
 
 type EditField = 'in' | 'out' | null;
 
 export function DailyEntry() {
   const settings = useSettings();
-  const [date, setDate] = useState(todayDateString());
+  const {
+    selectedDate: date,
+    isToday,
+    setSelectedDate,
+    goToToday,
+    goToPreviousDay,
+    goToNextDay,
+  } = useSelectedDate();
+
   const record = useRecordByDate(date);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [editField, setEditField] = useState<EditField>(null);
   const [editTime, setEditTime] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const status = getDayStatus(record);
+  const displayStatus = getDisplayStatus(record);
+  const dayType = record ? resolveDayType(record) : null;
+  const isOfficeDay = !dayType || dayType === 'OFFICE';
   const hasPunchIn = Boolean(record?.punchIn);
   const hasPunchOut = Boolean(record?.punchOut);
   const timeline = settings ? buildTimeline(record, settings) : [];
@@ -37,7 +52,14 @@ export function DailyEntry() {
   useEffect(() => {
     setEditField(null);
     setError('');
+    setToastMessage(null);
   }, [date]);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const id = window.setTimeout(() => setToastMessage(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [toastMessage]);
 
   const run = async (action: () => Promise<unknown>) => {
     if (!settings) return;
@@ -54,7 +76,6 @@ export function DailyEntry() {
   };
 
   const handlePunchIn = () => run(() => recordPunchIn(date, settings!));
-
   const handlePunchOut = () => run(() => recordPunchOut(date, settings!));
 
   const startEdit = (field: 'in' | 'out') => {
@@ -73,37 +94,27 @@ export function DailyEntry() {
     );
   };
 
-  const goToday = () => setDate(todayDateString());
-
   return (
     <div className="space-y-5 animate-slide-up">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="section-title">Daily Entry</p>
-          <h2 className="page-title mt-1">Punch Clock</h2>
-        </div>
-        <StatusBadge status={status} />
+      <div>
+        <p className="section-title">Daily Entry</p>
+        <h2 className="page-title mt-1">Punch Clock</h2>
       </div>
 
       <Card>
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-text-secondary">Date</label>
-            <input
-              type="date"
-              className="input-field"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-            <p className="mt-1 text-xs text-text-muted">{formatDisplayDate(date)}</p>
-          </div>
-          {date !== todayDateString() && (
-            <button type="button" onClick={goToday} className="btn-secondary w-full">
-              Jump to Today
-            </button>
-          )}
-        </div>
+        <DateSelector
+          selectedDate={date}
+          isToday={isToday}
+          onDateChange={setSelectedDate}
+          onPreviousDay={goToPreviousDay}
+          onToday={goToToday}
+          onNextDay={goToNextDay}
+        />
       </Card>
+
+      <div className="flex items-center justify-end">
+        <StatusBadge status={displayStatus} />
+      </div>
 
       {error && (
         <p className="rounded-2xl bg-danger/10 px-4 py-3 text-sm text-danger" role="alert">
@@ -111,63 +122,106 @@ export function DailyEntry() {
         </p>
       )}
 
-      <div className="space-y-3">
-        <PunchSection
-          title="Punch In"
-          subtitle="Records your arrival at the office"
-          time={record?.punchIn}
-          disabled={loading || !settings || hasPunchIn}
-          buttonLabel={hasPunchIn ? 'Punched In' : 'Punch In'}
-          buttonClass="btn-punch-in"
-          onPunch={handlePunchIn}
-          canEdit={hasPunchIn}
-          editing={editField === 'in'}
-          editTime={editTime}
-          onStartEdit={() => startEdit('in')}
-          onEditTimeChange={setEditTime}
-          onSaveEdit={saveEdit}
-          onCancelEdit={() => setEditField(null)}
-        />
+      {isOfficeDay && (
+        <div className="space-y-3">
+          <PunchSection
+            title="Punch In"
+            subtitle="Records arrival at the office"
+            time={record?.punchIn}
+            disabled={loading || !settings || hasPunchIn}
+            buttonLabel={hasPunchIn ? 'Punched In' : 'Punch In'}
+            buttonClass="btn-punch-in"
+            onPunch={handlePunchIn}
+            canEdit={hasPunchIn}
+            editing={editField === 'in'}
+            editTime={editTime}
+            onStartEdit={() => startEdit('in')}
+            onEditTimeChange={setEditTime}
+            onSaveEdit={saveEdit}
+            onCancelEdit={() => setEditField(null)}
+          />
 
-        <PunchSection
-          title="Punch Out"
-          subtitle="Completes your day and calculates hours"
-          time={record?.punchOut}
-          disabled={loading || !settings || !hasPunchIn || hasPunchOut}
-          buttonLabel={hasPunchOut ? 'Punched Out' : 'Punch Out'}
-          buttonClass="btn-punch-out"
-          onPunch={handlePunchOut}
-          canEdit={hasPunchOut}
-          editing={editField === 'out'}
-          editTime={editTime}
-          onStartEdit={() => startEdit('out')}
-          onEditTimeChange={setEditTime}
-          onSaveEdit={saveEdit}
-          onCancelEdit={() => setEditField(null)}
-        />
-      </div>
+          <PunchSection
+            title="Punch Out"
+            subtitle="Completes your day and calculates hours"
+            time={record?.punchOut}
+            disabled={loading || !settings || !hasPunchIn || hasPunchOut}
+            buttonLabel={hasPunchOut ? 'Punched Out' : 'Punch Out'}
+            buttonClass="btn-punch-out"
+            onPunch={handlePunchOut}
+            canEdit={hasPunchOut}
+            editing={editField === 'out'}
+            editTime={editTime}
+            onStartEdit={() => startEdit('out')}
+            onEditTimeChange={setEditTime}
+            onSaveEdit={saveEdit}
+            onCancelEdit={() => setEditField(null)}
+          />
+        </div>
+      )}
 
-      {record?.punchIn && settings && (
-        <Card title="Today's Timeline" subtitle={status === 'Completed' ? 'Full schedule' : 'In progress'}>
+      {dayType === 'WFH' && record && (
+        <Card title="Work From Home" subtitle="Full-day WFH entry">
+          <div className="space-y-2 font-mono text-sm">
+            <p>
+              <span className="text-text-muted">WFH </span>
+              {formatTime24h(record.wfh1Start || WFH_DAY_START)} –{' '}
+              {formatTime24h(record.wfh1End || WFH_DAY_END)}
+            </p>
+            <p className="text-lg font-bold text-accent">
+              Total {formatDurationFromHours(record.totalHours)}
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {dayType === 'LEAVE' && (
+        <Card title="Leave" subtitle="No working hours recorded">
+          <p className="text-sm text-text-secondary">Marked as leave for this date.</p>
+        </Card>
+      )}
+
+      {dayType === 'HOLIDAY' && (
+        <Card title="Holiday" subtitle="No working hours recorded">
+          <p className="text-sm text-text-secondary">Marked as holiday for this date.</p>
+        </Card>
+      )}
+
+      {record && settings && (
+        <Card
+          title="Timeline"
+          subtitle={displayStatus === 'Completed' ? 'Full schedule' : 'In progress'}
+        >
           <DayTimeline steps={timeline} />
         </Card>
       )}
 
-      {record?.status === 'complete' && record.punchOut && (
-        <Card title="Summary" subtitle="Calculated after punch out">
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <SummaryCell
-              label="Office"
-              value={formatDurationFromHours(record.officeHours)}
-            />
-            <SummaryCell label="WFH" value={formatDurationFromHours(record.wfhHours)} />
-            <SummaryCell
-              label="Total"
-              value={formatDurationFromHours(record.totalHours)}
-              highlight
-            />
-          </div>
-        </Card>
+      {record?.status === 'complete' &&
+        (hasPunchOut || dayType === 'WFH') && (
+          <Card title="Summary" subtitle="Hours for this date">
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <SummaryCell
+                label="Office"
+                value={formatDurationFromHours(record.officeHours)}
+              />
+              <SummaryCell label="WFH" value={formatDurationFromHours(record.wfhHours)} />
+              <SummaryCell
+                label="Total"
+                value={formatDurationFromHours(record.totalHours)}
+                highlight
+              />
+            </div>
+          </Card>
+        )}
+
+      <AttendanceActions
+        variant="punch"
+        date={date}
+        onResetSuccess={setToastMessage}
+      />
+
+      {toastMessage && (
+        <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
       )}
     </div>
   );

@@ -1,7 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, getSettings, saveRecord, getRecordByDate } from '@/db';
+import { db, deleteRecord, getSettings, saveRecord, getRecordByDate } from '@/db';
 import type { AttendanceRecord, AppSettings } from '@/types';
+import { WFH_DAY_END, WFH_DAY_START, WFH_DAY_TOTAL_HOURS } from '@/types';
 import { computeAttendance, computePunchInOnly } from '@/utils/calculations';
+import { hasAttendanceRecord } from '@/utils/recordHelpers';
 import { currentLocalTime, todayDateString } from '@/utils/time';
 
 export function useAllRecords() {
@@ -31,6 +33,12 @@ export function useMonthRecords(year: number, month: number) {
   );
 }
 
+function assertNoExistingRecord(existing: AttendanceRecord | undefined): void {
+  if (hasAttendanceRecord(existing)) {
+    throw new Error('An attendance record already exists for this date.');
+  }
+}
+
 export async function recordPunchIn(
   date: string,
   settings: AppSettings,
@@ -39,6 +47,7 @@ export async function recordPunchIn(
   if (existing?.punchIn) {
     throw new Error('You have already punched in for this day.');
   }
+  assertNoExistingRecord(existing);
 
   const punchIn = currentLocalTime();
   const partial = computePunchInOnly(date, punchIn, settings);
@@ -46,6 +55,7 @@ export async function recordPunchIn(
   const record: AttendanceRecord = {
     id: existing?.id ?? crypto.randomUUID(),
     date,
+    dayType: 'OFFICE',
     punchIn,
     punchOut: '',
     wfh1Start: partial.wfh1Start,
@@ -78,6 +88,57 @@ export async function recordPunchOut(
   return upsertDailyEntry(date, existing.punchIn, punchOut, settings);
 }
 
+export async function recordWorkFromHome(date: string): Promise<AttendanceRecord> {
+  const existing = await getRecordByDate(date);
+  assertNoExistingRecord(existing);
+
+  const record: AttendanceRecord = {
+    id: existing?.id ?? crypto.randomUUID(),
+    date,
+    dayType: 'WFH',
+    wfh1Start: WFH_DAY_START,
+    wfh1End: WFH_DAY_END,
+    punchIn: '',
+    punchOut: '',
+    wfh2Start: '',
+    wfh2End: '',
+    officeHours: 0,
+    wfhHours: WFH_DAY_TOTAL_HOURS,
+    totalHours: WFH_DAY_TOTAL_HOURS,
+    status: 'complete',
+  };
+
+  await saveRecord(record);
+  return record;
+}
+
+export async function recordLeaveOrHoliday(
+  date: string,
+  dayType: 'LEAVE' | 'HOLIDAY',
+): Promise<AttendanceRecord> {
+  const existing = await getRecordByDate(date);
+  assertNoExistingRecord(existing);
+
+  const record: AttendanceRecord = {
+    id: existing?.id ?? crypto.randomUUID(),
+    date,
+    dayType,
+    wfh1Start: '',
+    wfh1End: '',
+    punchIn: '',
+    punchOut: '',
+    wfh2Start: '',
+    wfh2End: '',
+    officeHours: 0,
+    wfhHours: 0,
+    totalHours: 0,
+    status: 'complete',
+  };
+
+  await saveRecord(record);
+  return record;
+}
+
 export async function updatePunchIn(
   date: string,
   punchIn: string,
@@ -95,6 +156,7 @@ export async function updatePunchIn(
   const partial = computePunchInOnly(date, punchIn, settings);
   const record: AttendanceRecord = {
     ...existing,
+    dayType: 'OFFICE',
     punchIn,
     wfh1Start: partial.wfh1Start,
     wfh1End: partial.wfh1End,
@@ -138,6 +200,7 @@ export async function upsertDailyEntry(
   const record: AttendanceRecord = {
     id: existing?.id ?? crypto.randomUUID(),
     date,
+    dayType: 'OFFICE',
     punchIn,
     punchOut,
     wfh1Start: computed.wfh1Start,
@@ -152,4 +215,13 @@ export async function upsertDailyEntry(
 
   await saveRecord(record);
   return record;
+}
+
+/** Removes the attendance record for a single date (no bulk reset). */
+export async function resetAttendanceForDate(date: string): Promise<void> {
+  const existing = await getRecordByDate(date);
+  if (!existing) {
+    throw new Error('No attendance record exists for this date.');
+  }
+  await deleteRecord(existing.id);
 }

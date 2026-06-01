@@ -1,16 +1,18 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { useSelectedDate } from '@/hooks/useSelectedDate';
 import { useTheme } from '@/hooks/useTheme';
-
-const navItems = [
-  { to: '/', label: 'Home', icon: '◉' },
-  { to: '/entry', label: 'Punch', icon: '⏱' },
-  { to: '/history', label: 'History', icon: '☰' },
-  { to: '/analytics', label: 'Stats', icon: '◧' },
-  { to: '/settings', label: 'More', icon: '⚙' },
-];
 
 export function Layout() {
   const { resolved, toggle } = useTheme();
+  const { entryPath } = useSelectedDate();
+
+  const navItems = [
+    { to: '/', label: 'Home', icon: '◉', end: true },
+    { to: entryPath, label: 'Punch', icon: '⏱', end: false },
+    { to: '/history', label: 'History', icon: '☰', end: false },
+    { to: '/analytics', label: 'Stats', icon: '◧', end: false },
+    { to: '/settings', label: 'More', icon: '⚙', end: false },
+  ];
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col">
@@ -50,9 +52,9 @@ export function Layout() {
         <div className="mx-auto flex max-w-lg justify-around px-2 py-2">
           {navItems.map((item) => (
             <NavLink
-              key={item.to}
+              key={`${item.label}-${item.to}`}
               to={item.to}
-              end={item.to === '/'}
+              end={item.end}
               className={({ isActive }) =>
                 `flex min-w-[56px] flex-col items-center gap-0.5 rounded-xl px-3 py-2 text-xs font-medium transition ${
                   isActive

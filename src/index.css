@@ -104,7 +104,19 @@
     @apply btn-punch bg-gradient-to-b from-accent to-accent/85 text-white;
   }
 
+  .btn-punch-wfh {
+    @apply btn-punch bg-gradient-to-b from-success to-success/85 text-white;
+  }
+
   .btn-punch-edit {
     @apply inline-flex min-h-[44px] min-w-[44px] touch-manipulation items-center justify-center rounded-xl border border-border bg-surface-elevated px-4 text-sm font-medium text-accent transition active:scale-95;
+  }
+
+  .btn-danger {
+    @apply inline-flex min-h-[48px] items-center justify-center rounded-xl bg-danger px-6 py-3 text-base font-semibold text-white transition active:scale-[0.98] disabled:opacity-50;
+  }
+
+  .btn-reset-day {
+    @apply inline-flex min-h-[44px] w-full touch-manipulation items-center justify-center gap-2 rounded-xl border-2 border-danger bg-transparent px-4 py-2.5 text-sm font-semibold text-danger transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40;
   }
 }

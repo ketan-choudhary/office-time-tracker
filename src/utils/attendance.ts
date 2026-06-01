@@ -1,4 +1,5 @@
 import type { AppSettings, AttendanceRecord } from '@/types';
+import { resolveDayType } from './recordHelpers';
 import {
   currentLocalTime,
   formatTime24h,
@@ -9,7 +10,20 @@ import {
 /** Infosys-style minimum office presence target (3h 30m). */
 export const OFFICE_HOURS_TARGET_MINUTES = 3 * 60 + 30;
 
-export type DayStatus = 'Not Started' | 'Working' | 'Completed';
+/** @deprecated Use DisplayStatus */
+export type DayStatus = DisplayStatus;
+
+export type DisplayStatus =
+  | 'Not Started'
+  | 'In Progress'
+  | 'Completed'
+  | 'WFH'
+  | 'Leave'
+  | 'Holiday';
+
+export interface ProgressOptions {
+  live?: boolean;
+}
 
 export interface TimelineStep {
   label: string;
@@ -24,9 +38,18 @@ export interface DayProgress {
 }
 
 export function getDayStatus(record?: AttendanceRecord | null): DayStatus {
-  if (!record?.punchIn) return 'Not Started';
+  return getDisplayStatus(record);
+}
+
+export function getDisplayStatus(record?: AttendanceRecord | null): DisplayStatus {
+  if (!record) return 'Not Started';
+  const dayType = resolveDayType(record);
+  if (dayType === 'WFH') return 'WFH';
+  if (dayType === 'LEAVE') return 'Leave';
+  if (dayType === 'HOLIDAY') return 'Holiday';
+  if (!record.punchIn) return 'Not Started';
   if (record.status === 'complete' && record.punchOut) return 'Completed';
-  return 'Working';
+  return 'In Progress';
 }
 
 export function formatTimeLabel(time: string | null | undefined): string {
@@ -74,14 +97,23 @@ export function buildTimeline(
 export function getDayProgress(
   record: AttendanceRecord | null | undefined,
   settings: AppSettings,
+  options?: ProgressOptions,
 ): DayProgress {
   const targetMinutes = settings.targetHoursMinutes;
+  const live = options?.live ?? false;
 
   if (!record?.punchIn) {
     return { currentMinutes: 0, targetMinutes, percent: 0 };
   }
 
   if (record.status === 'complete' && record.punchOut) {
+    const currentMinutes = Math.round(record.totalHours * 60);
+    const percent =
+      targetMinutes > 0 ? Math.min(100, Math.round((currentMinutes / targetMinutes) * 100)) : 0;
+    return { currentMinutes, targetMinutes, percent };
+  }
+
+  if (!live) {
     const currentMinutes = Math.round(record.totalHours * 60);
     const percent =
       targetMinutes > 0 ? Math.min(100, Math.round((currentMinutes / targetMinutes) * 100)) : 0;
@@ -109,14 +141,23 @@ export function getDayProgress(
 
 export function getOfficeHoursProgress(
   record: AttendanceRecord | null | undefined,
+  options?: ProgressOptions,
 ): DayProgress {
   const targetMinutes = OFFICE_HOURS_TARGET_MINUTES;
+  const live = options?.live ?? false;
 
   if (!record?.punchIn) {
     return { currentMinutes: 0, targetMinutes, percent: 0 };
   }
 
   if (record.status === 'complete' && record.punchOut) {
+    const currentMinutes = Math.round(record.officeHours * 60);
+    const percent =
+      targetMinutes > 0 ? Math.round((currentMinutes / targetMinutes) * 100) : 0;
+    return { currentMinutes, targetMinutes, percent };
+  }
+
+  if (!live) {
     const currentMinutes = Math.round(record.officeHours * 60);
     const percent =
       targetMinutes > 0 ? Math.round((currentMinutes / targetMinutes) * 100) : 0;

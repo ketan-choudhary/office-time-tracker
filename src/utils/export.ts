@@ -1,7 +1,9 @@
 import type { AttendanceRecord, AppSettings } from '@/types';
+import { resolveDayType } from './recordHelpers';
 import { formatDurationFromHours, formatTime24h } from './time';
 
 const CSV_HEADERS = [
+  'Day Type',
   'Date',
   'Day',
   'WFH1 Start',
@@ -35,6 +37,7 @@ function formatCsvTime(time: string): string {
 export function recordsToCsv(records: AttendanceRecord[]): string {
   const rows = records.map((r) =>
     [
+      resolveDayType(r),
       r.date,
       dayName(r.date),
       formatCsvTime(r.wfh1Start),

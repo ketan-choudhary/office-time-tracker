@@ -1,8 +1,11 @@
 export type RecordStatus = 'complete' | 'partial' | 'draft';
 
+export type DayType = 'OFFICE' | 'WFH' | 'LEAVE' | 'HOLIDAY';
+
 export interface AttendanceRecord {
   id: string;
   date: string;
+  dayType: DayType;
   wfh1Start: string;
   wfh1End: string;
   punchIn: string;
@@ -23,6 +26,14 @@ export interface AppSettings {
   gapBeforeOfficeMinutes: number;
   gapAfterOfficeMinutes: number;
 }
+
+/** Fixed hybrid policy: mandatory office days per month. */
+export const MANDATORY_OFFICE_DAYS = 10;
+
+/** Default full-day WFH block (09:00–18:15 = 09:15 total). */
+export const WFH_DAY_START = '09:00';
+export const WFH_DAY_END = '18:15';
+export const WFH_DAY_TOTAL_HOURS = 9 + 15 / 60;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   id: 'settings',

@@ -19,6 +19,12 @@ export function formatShortDate(dateStr: string): string {
   return isValid(d) ? format(d, 'MMM d') : dateStr;
 }
 
+/** e.g. Jun 1, 2026 — used in reset confirmations and toasts. */
+export function formatLongDate(dateStr: string): string {
+  const d = parseISO(dateStr);
+  return isValid(d) ? format(d, 'MMM d, yyyy') : dateStr;
+}
+
 export function formatDayName(dateStr: string): string {
   const d = parseISO(dateStr);
   return isValid(d) ? format(d, 'EEE') : '';

@@ -1,8 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/Card';
+import { DayTypeBadgeFromRecord } from '@/components/attendance/DayTypeBadge';
 import { DurationChip } from '@/components/attendance/DurationChip';
 import { useAllRecords } from '@/hooks/useRecords';
 import { formatTimeLabel } from '@/utils/attendance';
+import {
+  countDayTypesInPeriod,
+  getWorkingDayBreakdown,
+  getWorkingDayBreakdownForRange,
+} from '@/utils/compliance';
 import { currentMonthRange, formatDayName, previousMonthRange } from '@/utils/time';
 
 type FilterMode = 'current' | 'previous' | 'custom';
@@ -51,6 +57,28 @@ export function History() {
     [filtered],
   );
 
+  const dayCounts = useMemo(() => countDayTypesInPeriod(filtered), [filtered]);
+
+  const workingBreakdown = useMemo(() => {
+    if (filter === 'current') {
+      return getWorkingDayBreakdown(records, new Date());
+    }
+    if (filter === 'previous') {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 1);
+      return getWorkingDayBreakdown(records, d);
+    }
+    if (customStart && customEnd) {
+      return getWorkingDayBreakdownForRange(records, customStart, customEnd);
+    }
+    const start = filtered.length > 0 ? filtered[filtered.length - 1].date : customStart;
+    const end = filtered.length > 0 ? filtered[0].date : customEnd;
+    if (start && end) {
+      return getWorkingDayBreakdownForRange(records, start, end);
+    }
+    return getWorkingDayBreakdown(records, new Date());
+  }, [records, filter, customStart, customEnd, filtered]);
+
   return (
     <div className="space-y-5 animate-slide-up">
       <div>
@@ -96,20 +124,32 @@ export function History() {
 
       <Card title="Period Summary" subtitle={periodLabel}>
         <div className="grid grid-cols-3 gap-3">
-          <SummaryTotal
-            label="Total Office Hours"
-            hours={totals.office}
-            kind="office"
-          />
+          <SummaryTotal label="Total Office Hours" hours={totals.office} kind="office" />
           <SummaryTotal label="Total WFH Hours" hours={totals.wfh} kind="wfh" />
           <SummaryTotal label="Total Hours" hours={totals.total} kind="total" />
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-4 sm:grid-cols-3">
+          <DayCount
+            label="Working Days"
+            value={workingBreakdown.workingDays}
+            colorClass="text-accent"
+          />
+          <DayCount label="Weekends" value={workingBreakdown.weekendDays} colorClass="text-text-secondary" />
+          <DayCount label="Holidays" value={workingBreakdown.holidayDays} colorClass="text-[#7c3aed]" />
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <DayCount label="Office Days" value={dayCounts.office} colorClass="text-accent" />
+          <DayCount label="WFH Days" value={dayCounts.wfh} colorClass="text-success" />
+          <DayCount label="Leave Days" value={dayCounts.leave} colorClass="text-warning" />
+          <DayCount label="Holiday Days" value={dayCounts.holiday} colorClass="text-[#7c3aed]" />
         </div>
       </Card>
 
       <div className="-mx-4 overflow-x-auto px-4">
-        <table className="w-full min-w-[900px] border-collapse text-sm">
+        <table className="w-full min-w-[960px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-text-muted">
+              <th className="px-2 py-2">Type</th>
               <th className="px-2 py-2">Date</th>
               <th className="px-2 py-2">Day</th>
               <th className="px-2 py-2">WFH1 S</th>
@@ -127,7 +167,7 @@ export function History() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={12} className="py-8 text-center text-text-muted">
+                <td colSpan={13} className="py-8 text-center text-text-muted">
                   No records for this period.
                 </td>
               </tr>
@@ -137,6 +177,9 @@ export function History() {
                   key={r.id}
                   className="border-b border-border-subtle transition hover:bg-surface-muted/50"
                 >
+                  <td className="px-2 py-2.5">
+                    <DayTypeBadgeFromRecord record={r} />
+                  </td>
                   <td className="whitespace-nowrap px-2 py-2.5 font-medium">{r.date}</td>
                   <td className="px-2 py-2.5">{formatDayName(r.date)}</td>
                   <td className="px-2 py-2.5 font-mono tabular-nums">
@@ -192,6 +235,23 @@ function SummaryTotal({
       <div className="mt-2 flex justify-center">
         <DurationChip kind={kind} hours={hours} className="text-base" />
       </div>
+    </div>
+  );
+}
+
+function DayCount({
+  label,
+  value,
+  colorClass,
+}: {
+  label: string;
+  value: number;
+  colorClass: string;
+}) {
+  return (
+    <div className="rounded-xl bg-surface-muted px-3 py-2 text-center">
+      <p className="text-xs font-medium text-text-muted">{label}</p>
+      <p className={`mt-1 font-mono text-xl font-bold ${colorClass}`}>{value}</p>
     </div>
   );
 }
