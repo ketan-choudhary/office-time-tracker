@@ -30,8 +30,51 @@ export function formatDayName(dateStr: string): string {
   return isValid(d) ? format(d, 'EEE') : '';
 }
 
+/** Normalize HH:mm or HH:mm:ss to HH:mm for storage and parsing. */
+export function normalizeTimeString(timeStr: string): string {
+  const trimmed = timeStr.trim();
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return trimmed;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (Number.isNaN(h) || Number.isNaN(m) || h > 23 || m > 59) return trimmed;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** True when a stored punch time is a non-empty, parseable HH:mm value. */
+export function hasValidPunchTime(timeStr: string | null | undefined): boolean {
+  if (timeStr == null) return false;
+  const trimmed = timeStr.trim();
+  if (!trimmed) return false;
+  const normalized = normalizeTimeString(trimmed);
+  if (!/^\d{2}:\d{2}$/.test(normalized)) return false;
+  const [h, m] = normalized.split(':').map(Number);
+  return h >= 0 && h <= 23 && m >= 0 && m <= 59;
+}
+
+/**
+ * Combine an attendance date (yyyy-MM-dd) with a clock time (HH:mm).
+ * Always anchors both values on the attendance date — never today's date.
+ */
 export function parseTimeOnDate(dateStr: string, timeStr: string): Date {
-  return parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
+  const normalizedTime = normalizeTimeString(timeStr);
+  const dateMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const timeMatch = normalizedTime.match(/^(\d{2}):(\d{2})$/);
+
+  if (dateMatch && timeMatch) {
+    const year = parseInt(dateMatch[1], 10);
+    const month = parseInt(dateMatch[2], 10) - 1;
+    const day = parseInt(dateMatch[3], 10);
+    const hours = parseInt(timeMatch[1], 10);
+    const minutes = parseInt(timeMatch[2], 10);
+    return new Date(year, month, day, hours, minutes, 0, 0);
+  }
+
+  const parsed = parse(`${dateStr} ${normalizedTime}`, 'yyyy-MM-dd HH:mm', new Date(0));
+  if (!isValid(parsed)) {
+    throw new Error(`Invalid date/time: ${dateStr} ${timeStr}`);
+  }
+  return parsed;
 }
 
 export function minutesBetween(start: Date, end: Date): number {

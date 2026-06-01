@@ -1,6 +1,6 @@
 import type { AppSettings, AttendanceRecord, ComputedTimes } from '@/types';
 import { resolveDayType } from './recordHelpers';
-import { minutesBetween, parseTimeOnDate } from './time';
+import { minutesBetween, parseTimeOnDate, hasValidPunchTime } from './time';
 
 /** Schedule after punch in only (before punch out). */
 export function computePunchInOnly(
@@ -35,8 +35,29 @@ export function computeAttendance(
   punchOut: string,
   settings: AppSettings,
 ): ComputedTimes {
+  if (!hasValidPunchTime(punchIn)) {
+    throw new Error('Punch in time is required.');
+  }
+  if (!hasValidPunchTime(punchOut)) {
+    throw new Error('Punch out time is required.');
+  }
+
   const punchInDate = parseTimeOnDate(date, punchIn);
   const punchOutDate = parseTimeOnDate(date, punchOut);
+
+  console.log('[computeAttendance] punch time comparison', {
+    selectedDate: date,
+    punchIn,
+    punchOut,
+    punchInDateTime: punchInDate.toISOString(),
+    punchOutDateTime: punchOutDate.toISOString(),
+    punchInValid: !Number.isNaN(punchInDate.getTime()),
+    punchOutValid: !Number.isNaN(punchOutDate.getTime()),
+  });
+
+  if (Number.isNaN(punchInDate.getTime()) || Number.isNaN(punchOutDate.getTime())) {
+    throw new Error('Invalid punch time.');
+  }
 
   if (punchOutDate <= punchInDate) {
     throw new Error('Punch out must be after punch in.');

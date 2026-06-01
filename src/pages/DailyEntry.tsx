@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AttendanceActions } from '@/components/attendance/AttendanceActions';
+import { PunchSection } from '@/components/attendance/PunchSection';
+import { PunchTimeModal } from '@/components/attendance/PunchTimeModal';
 import { Card } from '@/components/ui/Card';
 import { Toast } from '@/components/ui/Toast';
 import { DateSelector } from '@/components/attendance/DateSelector';
@@ -8,7 +10,6 @@ import { StatusBadge } from '@/components/attendance/StatusBadge';
 import { useSelectedDate } from '@/hooks/useSelectedDate';
 import {
   recordPunchIn,
-  recordPunchOut,
   updatePunchIn,
   updatePunchOut,
   useRecordByDate,
@@ -19,6 +20,7 @@ import { resolveDayType } from '@/utils/recordHelpers';
 import {
   formatDurationFromHours,
   formatTime24h,
+  hasValidPunchTime,
 } from '@/utils/time';
 import { WFH_DAY_END, WFH_DAY_START } from '@/types';
 
@@ -30,8 +32,8 @@ export function DailyEntry() {
     selectedDate: date,
     isToday,
     setSelectedDate,
-    goToToday,
     goToPreviousDay,
+    goToToday,
     goToNextDay,
   } = useSelectedDate();
 
@@ -45,9 +47,20 @@ export function DailyEntry() {
   const displayStatus = getDisplayStatus(record);
   const dayType = record ? resolveDayType(record) : null;
   const isOfficeDay = !dayType || dayType === 'OFFICE';
-  const hasPunchIn = Boolean(record?.punchIn);
-  const hasPunchOut = Boolean(record?.punchOut);
+  const hasPunchIn = hasValidPunchTime(record?.punchIn);
+  const hasPunchOut =
+    record?.status === 'complete' && hasValidPunchTime(record?.punchOut);
   const timeline = settings ? buildTimeline(record, settings) : [];
+
+  const workedDuration = useMemo(() => {
+    if (!hasPunchIn || !hasPunchOut || !record) return null;
+    return formatDurationFromHours(record.officeHours);
+  }, [hasPunchIn, hasPunchOut, record]);
+
+  const punchOutBadge = useMemo((): 'In Progress' | 'Completed' | null => {
+    if (!hasPunchIn) return null;
+    return hasPunchOut ? 'Completed' : 'In Progress';
+  }, [hasPunchIn, hasPunchOut]);
 
   useEffect(() => {
     setEditField(null);
@@ -76,23 +89,45 @@ export function DailyEntry() {
   };
 
   const handlePunchIn = () => run(() => recordPunchIn(date, settings!));
-  const handlePunchOut = () => run(() => recordPunchOut(date, settings!));
 
-  const startEdit = (field: 'in' | 'out') => {
-    if (!record) return;
+  const openTimeModal = (field: 'in' | 'out') => {
+    if (!record && field === 'out') return;
+    const initial =
+      field === 'in'
+        ? record?.punchIn ?? ''
+        : record?.punchOut ?? '';
     setEditField(field);
-    setEditTime(field === 'in' ? record.punchIn : record.punchOut);
+    setEditTime(initial);
     setError('');
   };
 
-  const saveEdit = async () => {
-    if (!settings || !editField || !editTime) return;
+  const closeTimeModal = () => {
+    if (loading) return;
+    setEditField(null);
+  };
+
+  const saveTimeModal = async (time: string) => {
+    if (!settings || !editField || !time) return;
     await run(() =>
       editField === 'in'
-        ? updatePunchIn(date, editTime, settings)
-        : updatePunchOut(date, editTime, settings),
+        ? updatePunchIn(date, time, settings)
+        : updatePunchOut(date, time, settings),
     );
   };
+
+  const timeModalTitle =
+    editField === 'in'
+      ? hasPunchIn
+        ? 'Edit Punch In'
+        : 'Set Punch In'
+      : hasPunchOut
+        ? 'Edit Punch Out'
+        : 'Set Punch Out Time';
+
+  const timeModalSubtitle =
+    editField === 'out' && !hasPunchOut
+      ? 'Select when you left the office for this date.'
+      : undefined;
 
   return (
     <div className="space-y-5 animate-slide-up">
@@ -127,35 +162,33 @@ export function DailyEntry() {
           <PunchSection
             title="Punch In"
             subtitle="Records arrival at the office"
-            time={record?.punchIn}
-            disabled={loading || !settings || hasPunchIn}
-            buttonLabel={hasPunchIn ? 'Punched In' : 'Punch In'}
-            buttonClass="btn-punch-in"
-            onPunch={handlePunchIn}
+            time={hasPunchIn ? record!.punchIn : undefined}
             canEdit={hasPunchIn}
-            editing={editField === 'in'}
-            editTime={editTime}
-            onStartEdit={() => startEdit('in')}
-            onEditTimeChange={setEditTime}
-            onSaveEdit={saveEdit}
-            onCancelEdit={() => setEditField(null)}
+            onEdit={() => openTimeModal('in')}
+            primaryButton={
+              !hasPunchIn
+                ? {
+                    label: 'Punch In',
+                    hint: 'Tap to capture now',
+                    className: 'btn-punch-in',
+                    disabled: loading || !settings,
+                    onClick: handlePunchIn,
+                  }
+                : undefined
+            }
           />
 
           <PunchSection
             title="Punch Out"
             subtitle="Completes your day and calculates hours"
-            time={record?.punchOut}
-            disabled={loading || !settings || !hasPunchIn || hasPunchOut}
-            buttonLabel={hasPunchOut ? 'Punched Out' : 'Punch Out'}
-            buttonClass="btn-punch-out"
-            onPunch={handlePunchOut}
+            time={hasPunchOut ? record!.punchOut : undefined}
+            workedDuration={workedDuration}
+            completionBadge={punchOutBadge}
+            canSetTime={hasPunchIn && !hasPunchOut}
+            setTimeLabel="Set Punch Out Time"
+            onSetTime={() => openTimeModal('out')}
             canEdit={hasPunchOut}
-            editing={editField === 'out'}
-            editTime={editTime}
-            onStartEdit={() => startEdit('out')}
-            onEditTimeChange={setEditTime}
-            onSaveEdit={saveEdit}
-            onCancelEdit={() => setEditField(null)}
+            onEdit={() => openTimeModal('out')}
           />
         </div>
       )}
@@ -223,93 +256,17 @@ export function DailyEntry() {
       {toastMessage && (
         <Toast message={toastMessage} onDismiss={() => setToastMessage(null)} />
       )}
+
+      <PunchTimeModal
+        open={editField !== null}
+        title={timeModalTitle}
+        subtitle={timeModalSubtitle}
+        initialTime={editTime}
+        saving={loading}
+        onClose={closeTimeModal}
+        onSave={saveTimeModal}
+      />
     </div>
-  );
-}
-
-function PunchSection({
-  title,
-  subtitle,
-  time,
-  disabled,
-  buttonLabel,
-  buttonClass,
-  onPunch,
-  canEdit,
-  editing,
-  editTime,
-  onStartEdit,
-  onEditTimeChange,
-  onSaveEdit,
-  onCancelEdit,
-}: {
-  title: string;
-  subtitle: string;
-  time?: string;
-  disabled: boolean;
-  buttonLabel: string;
-  buttonClass: string;
-  onPunch: () => void;
-  canEdit: boolean;
-  editing: boolean;
-  editTime: string;
-  onStartEdit: () => void;
-  onEditTimeChange: (v: string) => void;
-  onSaveEdit: () => void;
-  onCancelEdit: () => void;
-}) {
-  return (
-    <Card className="!p-4">
-      <p className="text-sm font-semibold text-text-primary">{title}</p>
-      <p className="mt-0.5 text-xs text-text-muted">{subtitle}</p>
-
-      {time && !editing && (
-        <div className="mt-3 flex items-center justify-between rounded-2xl bg-surface-muted px-4 py-3">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Recorded</p>
-            <p className="text-xl font-bold tracking-tight text-text-primary">
-              {formatTime24h(time)}
-            </p>
-          </div>
-          {canEdit && (
-            <button type="button" className="btn-punch-edit" onClick={onStartEdit}>
-              Edit
-            </button>
-          )}
-        </div>
-      )}
-
-      {editing && (
-        <div className="mt-3 space-y-2">
-          <input
-            type="time"
-            className="input-field"
-            value={editTime}
-            onChange={(e) => onEditTimeChange(e.target.value)}
-          />
-          <div className="flex gap-2">
-            <button type="button" className="btn-primary flex-1" onClick={onSaveEdit}>
-              Save
-            </button>
-            <button type="button" className="btn-secondary flex-1" onClick={onCancelEdit}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {!editing && (
-        <button
-          type="button"
-          className={`${buttonClass} mt-4`}
-          disabled={disabled}
-          onClick={onPunch}
-        >
-          <span>{buttonLabel}</span>
-          {!time && <span className="text-sm font-normal opacity-90">Tap to capture now</span>}
-        </button>
-      )}
-    </Card>
   );
 }
 

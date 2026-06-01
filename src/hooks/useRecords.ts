@@ -4,7 +4,7 @@ import type { AttendanceRecord, AppSettings } from '@/types';
 import { WFH_DAY_END, WFH_DAY_START, WFH_DAY_TOTAL_HOURS } from '@/types';
 import { computeAttendance, computePunchInOnly } from '@/utils/calculations';
 import { hasAttendanceRecord } from '@/utils/recordHelpers';
-import { currentLocalTime, todayDateString } from '@/utils/time';
+import { currentLocalTime, hasValidPunchTime, todayDateString } from '@/utils/time';
 
 export function useAllRecords() {
   return useLiveQuery(() => db.records.orderBy('date').reverse().toArray(), []);
@@ -149,11 +149,26 @@ export async function updatePunchIn(
     throw new Error('No punch in recorded for this day.');
   }
 
-  if (existing.punchOut) {
-    return upsertDailyEntry(date, punchIn, existing.punchOut, settings);
+  const attendanceDate = existing.date ?? date;
+  const validPunchOut =
+    existing.status === 'complete' && hasValidPunchTime(existing.punchOut);
+
+  console.log('[updatePunchIn]', {
+    selectedDate: date,
+    attendanceDate,
+    punchIn,
+    punchOut: existing.punchOut,
+    dayType: existing.dayType,
+    recordStatus: existing.status,
+    validPunchOut,
+    willValidateAgainstPunchOut: validPunchOut,
+  });
+
+  if (validPunchOut) {
+    return upsertDailyEntry(attendanceDate, punchIn, existing.punchOut, settings);
   }
 
-  const partial = computePunchInOnly(date, punchIn, settings);
+  const partial = computePunchInOnly(attendanceDate, punchIn, settings);
   const record: AttendanceRecord = {
     ...existing,
     dayType: 'OFFICE',
@@ -181,11 +196,21 @@ export async function updatePunchOut(
   if (!existing?.punchIn) {
     throw new Error('Punch in before editing punch out.');
   }
-  if (!existing.punchOut) {
-    throw new Error('Punch out is not recorded yet.');
+  if (!hasValidPunchTime(punchOut)) {
+    throw new Error('Enter a valid punch out time.');
   }
 
-  return upsertDailyEntry(date, existing.punchIn, punchOut, settings);
+  const attendanceDate = existing.date ?? date;
+
+  console.log('[updatePunchOut]', {
+    selectedDate: date,
+    attendanceDate,
+    punchIn: existing.punchIn,
+    punchOut,
+    dayType: existing.dayType,
+  });
+
+  return upsertDailyEntry(attendanceDate, existing.punchIn, punchOut, settings);
 }
 
 export async function upsertDailyEntry(
@@ -194,12 +219,28 @@ export async function upsertDailyEntry(
   punchOut: string,
   settings: AppSettings,
 ): Promise<AttendanceRecord> {
-  const computed = computeAttendance(date, punchIn, punchOut, settings);
   const existing = await getRecordByDate(date);
+  const attendanceDate = existing?.date ?? date;
+
+  console.log('[upsertDailyEntry]', {
+    selectedDate: date,
+    attendanceDate,
+    punchIn,
+    punchOut,
+    dayType: existing?.dayType,
+    validPunchIn: hasValidPunchTime(punchIn),
+    validPunchOut: hasValidPunchTime(punchOut),
+  });
+
+  if (!hasValidPunchTime(punchIn) || !hasValidPunchTime(punchOut)) {
+    throw new Error('Both punch in and punch out times are required to complete the day.');
+  }
+
+  const computed = computeAttendance(attendanceDate, punchIn, punchOut, settings);
 
   const record: AttendanceRecord = {
     id: existing?.id ?? crypto.randomUUID(),
-    date,
+    date: attendanceDate,
     dayType: 'OFFICE',
     punchIn,
     punchOut,
