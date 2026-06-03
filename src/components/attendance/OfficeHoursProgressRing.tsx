@@ -25,8 +25,8 @@ export function OfficeHoursProgressRing({
     // Update countdown if data changes
     setCountdown(getOfficeHoursCountdown(record, progressOptions));
 
-    // Only set up live update interval if it's a live session
-    if (!progressOptions?.live || !record?.punchIn) {
+    // Only set up live update interval if it's a live session AND punch out hasn't happened yet
+    if (!progressOptions?.live || !record?.punchIn || record?.punchOut) {
       return;
     }
 
@@ -74,7 +74,7 @@ export function OfficeHoursProgressRing({
             <p className="font-semibold text-text-primary">—</p>
           </div>
           <div className="flex-1">
-            <p className="text-text-muted mb-1">Target Out</p>
+            <p className="text-text-muted mb-1">Punch Out</p>
             <p className="font-semibold text-text-primary">—</p>
           </div>
         </div>
@@ -88,6 +88,10 @@ export function OfficeHoursProgressRing({
   const radius = 48;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (progressPercent / 100) * circumference;
+  
+  // Check if punch out is recorded
+  const isPunchedOut = !!record?.punchOut;
+  const displayPunchOutTime = isPunchedOut ? record.punchOut : targetPunchOutTime;
 
   return (
     <div className="flex flex-col gap-5">
@@ -123,17 +127,25 @@ export function OfficeHoursProgressRing({
         </div>
       </div>
 
-      {/* Large countdown timer */}
+      {/* Countdown or Completed State */}
       <div className="flex flex-col items-center">
-        <p className={`text-6xl font-bold tabular-nums transition-colors duration-500 ${colorClassName}`}>
-          {formatDurationHHMM(remainingMinutes)}
-        </p>
+        {isPunchedOut ? (
+          <p className={`text-2xl font-bold tracking-tight ${colorClassName}`}>COMPLETED</p>
+        ) : (
+          <p className={`text-6xl font-bold tabular-nums transition-colors duration-500 ${colorClassName}`}>
+            {formatDurationHHMM(remainingMinutes)}
+          </p>
+        )}
       </div>
 
-      {/* Leave At Time */}
+      {/* Leave At / Left At Time */}
       <div className="flex flex-col items-center gap-1">
-        <p className="text-xs font-medium uppercase tracking-widest text-text-muted">Leave At</p>
-        <p className={`text-lg font-semibold ${colorClassName}`}>{formatTime12hWithAMPM(targetPunchOutTime)}</p>
+        <p className="text-xs font-medium uppercase tracking-widest text-text-muted">
+          {isPunchedOut ? 'Left At' : 'Leave At'}
+        </p>
+        <p className={`text-lg font-semibold ${colorClassName}`}>
+          {formatTime12hWithAMPM(displayPunchOutTime)}
+        </p>
       </div>
 
       {/* Progress bar */}
@@ -155,8 +167,8 @@ export function OfficeHoursProgressRing({
           <p className="font-semibold text-text-primary">{formatTime12hWithAMPM(punchInTime)}</p>
         </div>
         <div className="flex-1">
-          <p className="text-text-muted mb-1">Target Out</p>
-          <p className="font-semibold text-text-primary">{formatTime12hWithAMPM(targetPunchOutTime)}</p>
+          <p className="text-text-muted mb-1">Punch Out</p>
+          <p className="font-semibold text-text-primary">{formatTime12hWithAMPM(displayPunchOutTime)}</p>
         </div>
       </div>
     </div>

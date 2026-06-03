@@ -136,11 +136,11 @@ export function Dashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="border-accent/20 bg-gradient-to-br from-accent/5 via-surface-elevated to-surface-elevated">
-          <DayProgressRing progress={dayProgress} />
-        </Card>
         <Card className="border-border bg-surface-elevated">
           <OfficeHoursProgressRing record={selectedRecord} progressOptions={progressOptions} />
+        </Card>
+        <Card className="border-accent/20 bg-gradient-to-br from-accent/5 via-surface-elevated to-surface-elevated">
+          <DayProgressRing progress={dayProgress} />
         </Card>
       </div>
 
