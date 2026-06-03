@@ -14,12 +14,14 @@ export function OfficeDaysComplianceWidget({
   snapshot,
   subtitle,
 }: OfficeDaysComplianceWidgetProps) {
-  const { officeDaysCompleted, officeDaysRequired, remainingOfficeDays } = snapshot;
+  const { officeDaysCompleted, officeDaysRequired, leaveDays, holidayDays } = snapshot;
+  const adjustedTarget = Math.max(0, officeDaysRequired - leaveDays - holidayDays);
+  const remainingOfficeDays = Math.max(0, adjustedTarget - officeDaysCompleted);
   const colorClass = getOfficeDaysComplianceColor(officeDaysCompleted);
   const barClass = getOfficeDaysComplianceBarColor(officeDaysCompleted);
   const pct =
-    officeDaysRequired > 0
-      ? Math.min(100, Math.round((officeDaysCompleted / officeDaysRequired) * 100))
+    adjustedTarget > 0
+      ? Math.min(100, Math.round((officeDaysCompleted / adjustedTarget) * 100))
       : 0;
 
   return (
@@ -30,7 +32,7 @@ export function OfficeDaysComplianceWidget({
             {officeDaysCompleted}
             <span className="text-2xl font-semibold text-text-muted">
               {' '}
-              / {officeDaysRequired}
+              / {adjustedTarget}
             </span>
           </p>
           <p className="mt-1 text-sm text-text-secondary">OFFICE days this month</p>

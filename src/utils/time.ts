@@ -119,6 +119,15 @@ export function formatTime24h(timeStr: string): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+/** Format time in 12-hour AM/PM format (e.g., "02:45 PM"). */
+export function formatTime12hWithAMPM(timeStr: string): string {
+  const [h, m] = timeStr.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return timeStr;
+  const period = h >= 12 ? 'PM' : 'AM';
+  const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${displayHour}:${String(m).padStart(2, '0')} ${period}`;
+}
+
 /** @deprecated Use formatTime24h */
 export function formatTime12h(timeStr: string): string {
   return formatTime24h(timeStr);

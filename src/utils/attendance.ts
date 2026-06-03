@@ -189,3 +189,86 @@ export function getOfficeHoursProgressColor(percent: number): string {
   if (percent >= 40) return 'text-warning';
   return 'text-danger';
 }
+
+export interface OfficeHoursCountdown {
+  remainingMinutes: number;
+  elapsedMinutes: number;
+  targetMinutes: number;
+  percent: number;
+  punchInTime: string;
+  targetPunchOutTime: string;
+  isLive: boolean;
+}
+
+/**
+ * Calculate countdown and punch times for office hours widget.
+ * Returns remaining time, punch in/out times, and percentage.
+ */
+export function getOfficeHoursCountdown(
+  record: AttendanceRecord | null | undefined,
+  options?: ProgressOptions,
+): OfficeHoursCountdown | null {
+  const targetMinutes = OFFICE_HOURS_TARGET_MINUTES;
+  const live = options?.live ?? false;
+
+  if (!record?.punchIn) {
+    return null;
+  }
+
+  const date = record.date;
+  const punchInTime = record.punchIn;
+  const punchInDate = parseTimeOnDate(date, punchInTime);
+  
+  // Calculate target punch out time by adding target office minutes to punch in
+  const targetPunchOutDate = new Date(punchInDate.getTime() + targetMinutes * 60000);
+  const targetPunchOutTime = `${String(targetPunchOutDate.getHours()).padStart(2, '0')}:${String(targetPunchOutDate.getMinutes()).padStart(2, '0')}`;
+
+  if (record.status === 'complete' && record.punchOut) {
+    // Completed day - use stored office hours
+    const elapsedMinutes = Math.round(record.officeHours * 60);
+    const remainingMinutes = Math.max(0, targetMinutes - elapsedMinutes);
+    const percent = targetMinutes > 0 ? Math.round((elapsedMinutes / targetMinutes) * 100) : 0;
+    return {
+      remainingMinutes,
+      elapsedMinutes,
+      targetMinutes,
+      percent,
+      punchInTime,
+      targetPunchOutTime,
+      isLive: false,
+    };
+  }
+
+  if (!live) {
+    // Not live - use stored office hours if available
+    const elapsedMinutes = Math.round(record.officeHours * 60);
+    const remainingMinutes = Math.max(0, targetMinutes - elapsedMinutes);
+    const percent = targetMinutes > 0 ? Math.round((elapsedMinutes / targetMinutes) * 100) : 0;
+    return {
+      remainingMinutes,
+      elapsedMinutes,
+      targetMinutes,
+      percent,
+      punchInTime,
+      targetPunchOutTime,
+      isLive: false,
+    };
+  }
+
+  // Live calculation - current office time
+  const nowTime = currentLocalTime();
+  const nowDate = parseTimeOnDate(date, nowTime);
+  const elapsedMinutes = nowDate > punchInDate ? minutesBetween(punchInDate, nowDate) : 0;
+  const remainingMinutes = Math.max(0, targetMinutes - elapsedMinutes);
+  const percent = targetMinutes > 0 ? Math.round((elapsedMinutes / targetMinutes) * 100) : 0;
+
+  return {
+    remainingMinutes,
+    elapsedMinutes,
+    targetMinutes,
+    percent,
+    punchInTime,
+    targetPunchOutTime,
+    isLive: true,
+  };
+}

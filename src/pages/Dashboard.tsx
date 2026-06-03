@@ -19,7 +19,6 @@ import {
   buildTimeline,
   getDayProgress,
   getDisplayStatus,
-  getOfficeHoursProgress,
 } from '@/utils/attendance';
 import { evaluateWFHTomorrow, getMonthComplianceSnapshot } from '@/utils/compliance';
 import { resolveDayType } from '@/utils/recordHelpers';
@@ -71,11 +70,6 @@ export function Dashboard() {
         : { currentMinutes: 0, targetMinutes: 555, percent: 0 },
     [selectedRecord, settings, progressOptions, progressTick],
   );
-
-  const officeProgress = useMemo(() => {
-    void progressTick;
-    return getOfficeHoursProgress(selectedRecord, progressOptions);
-  }, [selectedRecord, progressOptions, progressTick]);
 
   const complianceMonth = useMemo(() => parseISO(selectedDate), [selectedDate]);
 
@@ -146,7 +140,7 @@ export function Dashboard() {
           <DayProgressRing progress={dayProgress} />
         </Card>
         <Card className="border-border bg-surface-elevated">
-          <OfficeHoursProgressRing progress={officeProgress} />
+          <OfficeHoursProgressRing record={selectedRecord} progressOptions={progressOptions} />
         </Card>
       </div>
 

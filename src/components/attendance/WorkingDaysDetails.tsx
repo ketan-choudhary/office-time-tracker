@@ -12,7 +12,7 @@ export function WorkingDaysDetails({
   officeDaysRequired,
   subtitle,
 }: WorkingDaysDetailsProps) {
-  const { workingDays, weekendDays, holidayDays, wfhEligible } = breakdown;
+  const { workingDays, leaveDays, holidayDays, wfhEligible } = breakdown;
 
   return (
     <Card title="Working Days" subtitle={subtitle}>
@@ -22,8 +22,8 @@ export function WorkingDaysDetails({
           <dd className="mt-1 font-mono text-2xl font-bold text-accent">{workingDays}</dd>
         </div>
         <div className="rounded-xl bg-surface-muted px-3 py-3">
-          <dt className="text-xs font-medium text-text-muted">Weekends</dt>
-          <dd className="mt-1 font-mono text-2xl font-bold text-text-secondary">{weekendDays}</dd>
+          <dt className="text-xs font-medium text-text-muted">Leave Days</dt>
+          <dd className="mt-1 font-mono text-2xl font-bold text-text-secondary">{leaveDays}</dd>
         </div>
         <div className="rounded-xl bg-surface-muted px-3 py-3">
           <dt className="text-xs font-medium text-text-muted">Holidays</dt>

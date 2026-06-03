@@ -23,6 +23,7 @@ export interface WorkingDayBreakdown {
 export interface MonthComplianceSnapshot extends WorkingDayBreakdown {
   officeDaysCompleted: number;
   officeDaysRequired: number;
+  totalValidWFODays: number;
   remainingOfficeDays: number;
   wfhUsed: number;
   wfhEligible: number;
@@ -157,6 +158,11 @@ export function getMonthComplianceSnapshot(
 
   const officeDaysCompleted = dayCounts.office;
   const wfhUsed = dayCounts.wfh;
+  
+  // Calculate totalValidWFODays = workingDays - fullDayLeaves
+  // This excludes weekends, holidays, and full-day leaves from the target
+  const totalValidWFODays = Math.max(0, breakdown.workingDays - dayCounts.leave);
+  
   const wfhEligible = getWFHEligibleDays(breakdown.workingDays, officeDaysRequired);
   const remainingOfficeDays = Math.max(0, officeDaysRequired - officeDaysCompleted);
   const remainingWFH = Math.max(0, wfhEligible - wfhUsed);
@@ -165,10 +171,12 @@ export function getMonthComplianceSnapshot(
     ...breakdown,
     officeDaysCompleted,
     officeDaysRequired,
+    totalValidWFODays,
     remainingOfficeDays,
     wfhUsed,
     wfhEligible,
     remainingWFH,
+    holidayDays: dayCounts.holiday,
     leaveDays: dayCounts.leave,
   };
 }
